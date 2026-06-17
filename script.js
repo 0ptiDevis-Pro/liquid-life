@@ -1,84 +1,76 @@
-// ================= DATA MANAGEMENT (LOCALSTORAGE) ================= */
+// ================= DATA STATE ================= */
 let state = {
     streak: parseInt(localStorage.getItem('ll_streak')) || 0,
-    lastActiveDay: localStorage.getItem('ll_lastDay') || "", // Date exacte de la dernière mission validée
-    dailyMissionCompleted: localStorage.getItem('ll_missionCompleted') === 'true',
+    lastMissionDate: localStorage.getItem('ll_lastMissionDate') || "", // Format YYYY-MM-DD
     currentMission: localStorage.getItem('ll_currentMission') || "15 pompes",
     courses: JSON.parse(localStorage.getItem('ll_courses')) || [],
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
-    goals: JSON.parse(localStorage.getItem('ll_goals')) || []
+    goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
+    pdfData: localStorage.getItem('ll_pdfData') || null
 };
 
-const quotes = [
-    "Une supercar ne s'achète pas avec des rêves, mais avec une discipline de fer.",
-    "Chaque répétition aujourd'hui est un billet vers la liberté financière de demain.",
-    "La richesse commence par la maîtrise de soi. Continue ta quête.",
-    "Tes habitudes actuelles construisent ton garage de rêve. Reste focus.",
-    "Le succès n'est pas un accident, c'est le résultat d'une routine implacable."
-];
+let goalToDeleteIndex = null; // Stocke l'index pour la modale de suppression
 
-// Instanciation initiale
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     checkAppDay();
+    loadPDF();
     renderAll();
     setInterval(updateSchoolStatus, 60000);
 });
 
 function saveState() {
     localStorage.setItem('ll_streak', state.streak);
-    localStorage.setItem('ll_lastDay', state.lastActiveDay);
-    localStorage.setItem('ll_missionCompleted', state.dailyMissionCompleted);
+    localStorage.setItem('ll_lastMissionDate', state.lastMissionDate);
     localStorage.setItem('ll_currentMission', state.currentMission);
     localStorage.setItem('ll_courses', JSON.stringify(state.courses));
     localStorage.setItem('ll_workout', JSON.stringify(state.workoutGenerated));
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
 }
 
-// ================= SYSTÈME DE STREAKS INFALLIBLE ================= */
+// ================= STREAK LOGIC (Strict & Infaillible) ================= */
+function getTodayString() {
+    // Renvoie la date locale au format YYYY-MM-DD
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function checkAppDay() {
-    const today = new Date().toDateString();
-    
-    // Vérification de la série (A-t-il raté un jour ?)
-    if (state.lastActiveDay) {
-        const lastActive = new Date(state.lastActiveDay);
-        const now = new Date(today);
-        const diffTime = Math.abs(now - lastActive);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-        
-        if (diffDays > 1) {
-            // Un jour a été sauté, on réinitialise la série
-            state.streak = 0;
-            state.dailyMissionCompleted = false;
-        } else if (diffDays === 1) {
-            // Nouveau jour consécutif, mission pas encore faite
-            state.dailyMissionCompleted = false;
-        }
-    }
-    
-    // Rotation quotidienne de la citation de motivation
-    const storedDay = localStorage.getItem('ll_currentDay');
-    if (storedDay !== today) {
-        document.getElementById('motivation-quote').innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
+    // Rotation quotidienne de la citation (Optionnel)
+    const today = getTodayString();
+    if (localStorage.getItem('ll_currentDay') !== today) {
         localStorage.setItem('ll_currentDay', today);
     }
-    
-    saveState();
 }
 
 function completeDailyMission() {
-    const today = new Date().toDateString();
+    const today = getTodayString();
     
-    // Blocage strict : Impossible de valider deux fois le même jour
-    if (state.lastActiveDay === today) {
-        alert("Mission déjà validée pour aujourd'hui ! Reviens demain pour augmenter ta série.");
+    // Si la mission a déjà été faite aujourd'hui, on bloque.
+    if (state.lastMissionDate === today) {
         return;
     }
-    
-    state.dailyMissionCompleted = true;
-    state.lastActiveDay = today;
-    state.streak += 1;
-    
+
+    if (state.lastMissionDate) {
+        // Calculer la différence en jours
+        const lastDate = new Date(state.lastMissionDate);
+        const nowDate = new Date(today);
+        const diffTime = Math.abs(nowDate - lastDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        if (diffDays === 1) {
+            // Jour consécutif
+            state.streak += 1;
+        } else {
+            // Série brisée
+            state.streak = 1;
+        }
+    } else {
+        // Première fois
+        state.streak = 1;
+    }
+
+    state.lastMissionDate = today;
     saveState();
     renderAll();
 }
@@ -90,37 +82,37 @@ function switchTab(tabId) {
     
     document.getElementById(`tab-${tabId}`).classList.add('active');
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
-
     renderAll();
 }
 
-// ================= AFFICHAGE DES ÉLÉMENTS ================= */
+// ================= RENDU GLOBAL ================= */
 function renderAll() {
+    const today = getTodayString();
+    const isMissionDone = (state.lastMissionDate === today);
+
     document.getElementById('streak-count').innerText = state.streak;
     
-    // Accueil - Mission Sportive
+    // Accueil - Mission Sport
     const missionBtn = document.getElementById('btn-complete-mission');
     document.getElementById('home-mission-text').innerText = state.currentMission;
     
-    if (state.dailyMissionCompleted) {
-        missionBtn.innerText = "Validé ! 🌟";
-        missionBtn.style.background = "var(--success-gradient)";
+    if (isMissionDone) {
+        missionBtn.innerText = "Validé ! ✨";
+        missionBtn.style.background = "#22C55E";
+        missionBtn.style.color = "white";
         missionBtn.disabled = true;
+        document.getElementById('day-progress-fill').style.width = "100%";
+        document.getElementById('day-progress-fill').classList.add('sport-fill');
+        document.getElementById('day-progress-text').innerText = "100% complété";
     } else {
-        missionBtn.innerText = "Mission terminée ✨";
-        missionBtn.style.background = "var(--accent-gradient)";
+        missionBtn.innerText = "Mission terminée";
+        missionBtn.style.background = "rgba(255,255,255,0.2)";
         missionBtn.disabled = false;
+        document.getElementById('day-progress-fill').style.width = "0%";
+        document.getElementById('day-progress-text').innerText = "0% complété";
     }
 
-    let completedTasks = state.dailyMissionCompleted ? 1 : 0;
-    const progressPercent = Math.round((completedTasks / 1) * 100);
-    
-    // On force un petit délai pour l'animation de la barre
-    setTimeout(() => {
-        document.getElementById('day-progress-fill').style.width = `${progressPercent}%`;
-    }, 50);
-    document.getElementById('day-progress-text').innerText = `${progressPercent}% complété`;
-
+    updateHomeGoalSummary();
     updateSchoolStatus();
     renderCoursesList();
     renderWorkout();
@@ -128,11 +120,52 @@ function renderAll() {
     lucide.createIcons();
 }
 
-// ================= VOLET SCOLAIRE ================= */
+// ================= SCOLAIRE (Couleurs Matières + PDF) ================= */
+const subjectColors = {
+    "maths": "#2F7CFF", "mathématiques": "#2F7CFF",
+    "français": "#8B5CF6", "francais": "#8B5CF6",
+    "histoire": "#F59E0B", "geo": "#F59E0B", "histoire-géo": "#F59E0B",
+    "svt": "#22C55E", "biologie": "#22C55E",
+    "physique": "#06B6D4", "chimie": "#06B6D4",
+    "anglais": "#EC4899", "espagnol": "#EC4899", "langues": "#EC4899"
+};
+
+function getSubjectColor(subject) {
+    const key = subject.toLowerCase().trim();
+    return subjectColors[key] || "#B4B4B4"; // Gris par défaut
+}
+
+function importPDF(input) {
+    const file = input.files[0];
+    if (file && file.type === "application/pdf") {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const base64 = e.target.result;
+                localStorage.setItem('ll_pdfData', base64);
+                state.pdfData = base64;
+                loadPDF();
+            } catch (err) {
+                alert("Le fichier PDF est trop lourd pour être sauvegardé localement. Utilise un fichier plus compressé.");
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function loadPDF() {
+    const container = document.getElementById('pdf-container');
+    const viewer = document.getElementById('pdf-viewer');
+    if (state.pdfData) {
+        viewer.src = state.pdfData;
+        container.style.display = "block";
+    }
+}
+
 function updateSchoolStatus() {
     if (state.courses.length === 0) {
         document.getElementById('home-schedule-status').innerHTML = "<p class='subtitle'>Aucun cours enregistré.</p>";
-        document.getElementById('school-timer').innerText = "Aucun cours aujourd'hui.";
+        document.getElementById('school-timer').innerText = "Agenda vide";
         return;
     }
 
@@ -147,44 +180,27 @@ function updateSchoolStatus() {
     for (let course of state.courses) {
         let start = timeToMinutes(course.start);
         let end = timeToMinutes(course.end);
-
-        if (currentMinutes >= start && currentMinutes < end) {
-            currentCourse = course;
-        } else if (currentMinutes < start && !nextCourse) {
-            nextCourse = course;
-        }
+        if (currentMinutes >= start && currentMinutes < end) currentCourse = course;
+        else if (currentMinutes < start && !nextCourse) nextCourse = course;
     }
 
     let homeHTML = "";
     if (currentCourse) {
-        let timeLeft = timeToMinutes(currentCourse.end) - currentMinutes;
-        homeHTML = `<p><strong>En cours : ${currentCourse.subject}</strong></p><p class="subtitle">Finit dans ${timeLeft} min (salle ${currentCourse.room || '-'})</p>`;
+        let color = getSubjectColor(currentCourse.subject);
+        homeHTML = `<p><strong style="color:${color}">En cours : ${currentCourse.subject}</strong></p><p class="subtitle">Finit dans ${timeToMinutes(currentCourse.end) - currentMinutes} min</p>`;
     } else if (nextCourse) {
-        let timeBefore = timeToMinutes(nextCourse.start) - currentMinutes;
-        homeHTML = `<p>Prochain cours : ${nextCourse.subject}</p><p class="subtitle">Dans ${timeBefore} min</p>`;
+        homeHTML = `<p>Prochain : ${nextCourse.subject}</p><p class="subtitle">À ${nextCourse.start}</p>`;
     } else {
         homeHTML = `<p>🎉 Journée terminée !</p>`;
     }
     document.getElementById('home-schedule-status').innerHTML = homeHTML;
-
-    if (currentCourse) {
-        let timeLeft = timeToMinutes(currentCourse.end) - currentMinutes;
-        document.getElementById('school-timer').innerText = `Cours actuel : ${currentCourse.subject} (finit dans ${timeLeft} min)`;
-    } else if (nextCourse) {
-        document.getElementById('school-timer').innerText = `Prochain cours à ${nextCourse.start} (${nextCourse.subject})`;
-    } else {
-        document.getElementById('school-timer').innerText = "Fin des cours passée.";
-    }
 }
 
 function renderCoursesList() {
     const list = document.getElementById('courses-list');
     list.innerHTML = "";
     
-    if(state.courses.length === 0) {
-        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Clique sur '+' ou importe ton fichier .ics</p>";
-        return;
-    }
+    if(state.courses.length === 0) return;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -192,16 +208,18 @@ function renderCoursesList() {
     state.courses.forEach((course, index) => {
         let start = timeToMinutes(course.start);
         let end = timeToMinutes(course.end);
-        let statusClass = "";
-
-        if (currentMinutes >= start && currentMinutes < end) statusClass = "current";
+        let statusClass = (currentMinutes >= start && currentMinutes < end) ? "current" : "";
+        let dotColor = getSubjectColor(course.subject);
         
         const card = document.createElement('div');
         card.className = `glass-card item-card course-card ${statusClass}`;
         card.innerHTML = `
-            <div class="item-info">
-                <h4>${course.subject}</h4>
-                <p><i data-lucide="clock" style="width:12px;height:12px;display:inline;"></i> ${course.start} - ${course.end} ${course.room ? ' | Salle ' + course.room : ''}</p>
+            <div class="item-info" style="display:flex; align-items:center; gap: 10px;">
+                <div style="width:12px; height:12px; border-radius:50%; background:${dotColor};"></div>
+                <div>
+                    <h4>${course.subject}</h4>
+                    <p>${course.start} - ${course.end} ${course.room ? '| ' + course.room : ''}</p>
+                </div>
             </div>
             <div class="item-actions">
                 <button class="btn-icon danger interactive-btn" onclick="deleteCourse(${index})"><i data-lucide="trash"></i></button>
@@ -219,16 +237,12 @@ function saveCourse(e) {
     const room = document.getElementById('course-room').value;
 
     state.courses.push({ subject, start, end, room });
-    saveState();
-    closeModal('course-modal');
-    document.getElementById('course-form').reset();
-    renderAll();
+    saveState(); closeModal('course-modal'); document.getElementById('course-form').reset(); renderAll();
 }
 
 function deleteCourse(index) {
     state.courses.splice(index, 1);
-    saveState();
-    renderAll();
+    saveState(); renderAll();
 }
 
 function timeToMinutes(timeString) {
@@ -236,48 +250,29 @@ function timeToMinutes(timeString) {
     return h * 60 + m;
 }
 
-function importEDT(input) {
-    const file = input.files[0];
-    if (file) {
-        alert("Fichier " + file.name + " détecté !\n(Note : L'intégration automatique des données .ics nécessitera une librairie externe comme ical.js pour fonctionner complètement).");
-    }
-}
-
-// ================= VOLET SPORT ================= */
-const baseExercises = ["Pompes", "Crunchs", "Dips", "Squats", "Gainage (sec)", "Élastiques haut du corps"];
-
+// ================= SPORT ================= */
+const baseExercises = ["Pompes", "Crunchs", "Dips", "Squats", "Gainage (sec)"];
 function generateDailyWorkout() {
     let routine = [];
     let tempExercises = [...baseExercises];
-    
     for (let i = 0; i < 3; i++) {
-        let randIdx = Math.floor(Math.random() * tempExercises.length);
-        let ex = tempExercises.splice(randIdx, 1)[0];
-        let reps = ex.includes("sec") ? 45 : 15;
-        routine.push({ name: ex, target: reps, done: false });
+        let ex = tempExercises.splice(Math.floor(Math.random() * tempExercises.length), 1)[0];
+        routine.push({ name: ex, target: ex.includes("sec") ? 45 : 15, done: false });
     }
-    
     state.workoutGenerated = routine;
     state.currentMission = `${routine[0].target} ${routine[0].name}`;
-    state.dailyMissionCompleted = false;
-    
-    saveState();
-    renderAll();
+    saveState(); renderAll();
 }
 
 function renderWorkout() {
     const list = document.getElementById('workout-list');
     list.innerHTML = "";
-
-    if (!state.workoutGenerated) {
-        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Génère ta quête du jour pour commencer !</p>";
-        return;
-    }
+    if (!state.workoutGenerated) return;
 
     state.workoutGenerated.forEach((ex, index) => {
         const card = document.createElement('div');
         card.className = "glass-card item-card";
-        if(ex.done) card.style.opacity = "0.6";
+        if(ex.done) card.style.opacity = "0.5";
         
         card.innerHTML = `
             <div class="item-info">
@@ -285,20 +280,18 @@ function renderWorkout() {
                 <p>Objectif : ${ex.target}</p>
             </div>
             <div class="item-actions">
-                ${!ex.done ? `<button class="btn-icon success interactive-btn" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<span>✓</span>'}
+                ${!ex.done ? `<button class="btn-icon success interactive-btn" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:#22C55E"></i>'}
             </div>
         `;
         list.appendChild(card);
     });
 }
-
 function completeWorkoutExercise(index) {
     state.workoutGenerated[index].done = true;
-    saveState();
-    renderAll();
+    saveState(); renderAll();
 }
 
-// ================= VOLET OBJECTIFS ================= */
+// ================= OBJECTIFS ================= */
 function togglePriceField(checked) {
     document.getElementById('price-fields').style.display = checked ? 'flex' : 'none';
 }
@@ -308,69 +301,48 @@ function saveGoal(e) {
     const title = document.getElementById('goal-title').value;
     const desc = document.getElementById('goal-desc').value;
     const date = document.getElementById('goal-date').value;
-    const creationDate = new Date().toISOString().split('T')[0]; // Sauvegarde de la date de création
+    const creationDate = getTodayString();
     const hasPrice = document.getElementById('goal-has-price').checked;
     
     let currentMoney = parseFloat(document.getElementById('goal-current-money').value) || 0;
     let targetMoney = parseFloat(document.getElementById('goal-target-money').value) || 0;
 
     state.goals.push({ title, desc, date, creationDate, hasPrice, currentMoney, targetMoney });
-    saveState();
-    closeModal('goal-modal');
-    document.getElementById('goal-form').reset();
-    togglePriceField(false);
-    renderAll();
+    saveState(); closeModal('goal-modal'); document.getElementById('goal-form').reset(); togglePriceField(false); renderAll();
 }
 
 function renderGoals() {
     const list = document.getElementById('goals-list');
     list.innerHTML = "";
-
-    if(state.goals.length === 0) {
-        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Ajoute des projets à long terme.</p>";
-        return;
-    }
+    if(state.goals.length === 0) return;
 
     state.goals.forEach((goal, index) => {
-        let moneyPercent = 0;
-        let priceStatusHTML = "";
+        let moneyPercent = 0; let priceHTML = ""; let timeHTML = "";
+        let barColor = "var(--accent-blue)";
 
-        // Barre d'argent
         if (goal.hasPrice && goal.targetMoney > 0) {
             moneyPercent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
-            priceStatusHTML = `
+            if (moneyPercent >= 80) barColor = "var(--success-green)"; // Presque atteint
+            
+            priceHTML = `
                 <p class="subtitle" style="margin-top: 8px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p>
-                <div class="progress-bar-linear">
-                    <div class="progress-fill" style="width: ${moneyPercent}%"></div>
-                </div>
+                <div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>
             `;
         }
 
-        // Barre de temps
-        let timeProgressHTML = "";
-        if (goal.date && goal.creationDate) {
-            const start = new Date(goal.creationDate).getTime();
+        if (goal.date) {
+            const start = new Date(goal.creationDate || goal.date).getTime();
             const end = new Date(goal.date).getTime();
             const now = new Date().getTime();
+            let timePercent = (now >= end) ? 100 : (now > start ? Math.round(((now - start) / (end - start)) * 100) : 0);
             
-            let timePercent = 0;
-            if (now >= end) {
-                timePercent = 100;
-            } else if (now > start) {
-                timePercent = Math.round(((now - start) / (end - start)) * 100);
-            }
+            let timeColor = "var(--accent-blue)";
+            if (timePercent > 80) timeColor = "var(--warning-orange)"; // Urgent
 
-            timeProgressHTML = `
-                <p class="subtitle" style="font-size:0.75rem; margin-top:8px;">
-                    <i data-lucide="clock" style="width:10px;height:10px;display:inline;"></i> Progression du temps (Cible : ${goal.date})
-                </p>
-                <div class="progress-bar-linear" style="height: 4px; margin-top: 4px;">
-                    <div class="progress-fill time-fill" style="width: ${timePercent}%;"></div>
-                </div>
+            timeHTML = `
+                <p class="subtitle" style="font-size:0.75rem; margin-top:8px;"><i data-lucide="clock" style="width:10px;height:10px;display:inline;"></i> Cible : ${goal.date}</p>
+                <div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: ${timeColor};"></div></div>
             `;
-        } else if (goal.date && !goal.creationDate) {
-            // Rétrocompatibilité pour les anciens objectifs
-            timeProgressHTML = `<p class="subtitle" style="font-size:0.75rem;"><i data-lucide="calendar" style="width:10px;height:10px;display:inline;"></i> Cible : ${goal.date}</p>`;
         }
 
         const card = document.createElement('div');
@@ -378,44 +350,55 @@ function renderGoals() {
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div style="flex: 1; padding-right: 10px;">
-                    <h4 style="font-size:1.15rem; font-weight:700;">${goal.title}</h4>
-                    <p class="subtitle" style="margin-bottom:6px;">${goal.desc || ''}</p>
+                    <h4>${goal.title}</h4><p class="subtitle">${goal.desc || ''}</p>
                 </div>
                 <div class="item-actions">
                     ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
-                    <button class="btn-icon danger interactive-btn" onclick="deleteGoal(${index})"><i data-lucide="trash"></i></button>
+                    <button class="btn-icon danger interactive-btn" onclick="triggerDeleteGoal(${index})"><i data-lucide="trash"></i></button>
                 </div>
             </div>
-            ${timeProgressHTML}
-            ${priceStatusHTML}
+            ${timeHTML}
+            ${priceHTML}
         `;
         list.appendChild(card);
     });
 }
 
+function updateHomeGoalSummary() {
+    const summary = document.getElementById('home-goal-summary');
+    if (state.goals.length > 0) {
+        const topGoal = state.goals[0];
+        summary.innerHTML = `<p style="font-weight:600; color:var(--accent-purple);">${topGoal.title}</p><p class="subtitle" style="font-size:0.8rem;">Cible: ${topGoal.date || 'Non définie'}</p>`;
+    } else {
+        summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`;
+    }
+}
+
 function addMoneyToGoal(index) {
-    let amt = prompt("Combien d'argent as-tu économisé pour cet objectif ? (€)");
+    let amt = prompt("Combien d'argent as-tu économisé ? (€)");
     if(amt && !isNaN(amt)) {
         state.goals[index].currentMoney += parseFloat(amt);
-        saveState();
-        renderAll();
+        saveState(); renderAll();
     }
 }
 
-function deleteGoal(index) {
-    // Demande de confirmation ajoutée ici
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet objectif ?")) {
-        state.goals.splice(index, 1);
+// Fonction pour déclencher la modale de suppression
+function triggerDeleteGoal(index) {
+    goalToDeleteIndex = index;
+    openModal('confirm-modal');
+}
+
+// Bouton de confirmation dans la modale
+document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+    if (goalToDeleteIndex !== null) {
+        state.goals.splice(goalToDeleteIndex, 1);
         saveState();
         renderAll();
+        closeModal('confirm-modal');
+        goalToDeleteIndex = null;
     }
-}
+});
 
-// ================= FENÊTRES MODALES (OUVERTURE/FERMETURE) ================= */
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
+// ================= MODALS ================= */
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
