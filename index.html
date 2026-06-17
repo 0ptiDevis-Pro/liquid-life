@@ -23,7 +23,7 @@
             </header>
 
             <div class="card-grid">
-                <div class="glass-card liquid-card" onclick="switchTab('school')" style="cursor: pointer;">
+                <div class="glass-card liquid-card interactive-card" onclick="switchTab('school')">
                     <div class="card-icon"><i data-lucide="calendar"></i></div>
                     <h3>Emploi du temps</h3>
                     <div id="home-schedule-status">
@@ -31,7 +31,7 @@
                     </div>
                 </div>
 
-                <div class="glass-card liquid-card highlight-card" onclick="switchTab('sport')" style="cursor: pointer;">
+                <div class="glass-card liquid-card highlight-card interactive-card" onclick="switchTab('sport')">
                     <div class="card-icon"><i data-lucide="dumbbell"></i></div>
                     <h3>Mission Sport</h3>
                     <div id="home-sport-mission">
@@ -67,8 +67,8 @@
             </header>
 
             <div class="action-bar" style="display: flex; gap: 10px;">
-                <button class="btn-secondary" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Ajouter</button>
-                <button class="btn-secondary" onclick="document.getElementById('ics-upload').click()" style="flex: 1;"><i data-lucide="upload"></i> Import .ics</button>
+                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Ajouter</button>
+                <button class="btn-secondary interactive-btn" onclick="document.getElementById('ics-upload').click()" style="flex: 1;"><i data-lucide="upload"></i> Import .ics</button>
                 <input type="file" id="ics-upload" accept=".ics" style="display: none;" onchange="importEDT(this)">
             </div>
 
@@ -85,7 +85,7 @@
             <div class="glass-card workout-generator">
                 <h3>⚡ Quête du Jour</h3>
                 <p>Génère une routine rapide au poids du corps.</p>
-                <button class="btn-primary" onclick="generateDailyWorkout()">Générer une routine</button>
+                <button class="btn-primary interactive-btn" onclick="generateDailyWorkout()">Générer une routine</button>
             </div>
 
             <div id="workout-list" class="list-container" style="margin-top: 20px;">
@@ -99,7 +99,7 @@
             </header>
 
             <div class="action-bar">
-                <button class="btn-secondary" onclick="openModal('goal-modal')"><i data-lucide="plus"></i> Nouvel Objectif</button>
+                <button class="btn-secondary interactive-btn" onclick="openModal('goal-modal')"><i data-lucide="plus"></i> Nouvel Objectif</button>
             </div>
 
             <div id="goals-list" class="list-container">
@@ -138,7 +138,7 @@
                 <input type="text" id="course-room" placeholder="Salle (ex: B204, Optionnel)" autocomplete="off">
                 <div class="modal-buttons">
                     <button type="button" class="btn-text" onclick="closeModal('course-modal')">Annuler</button>
-                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="submit" class="btn-primary interactive-btn">Enregistrer</button>
                 </div>
             </form>
         </div>
@@ -150,7 +150,8 @@
             <form id="goal-form" onsubmit="saveGoal(event)">
                 <input type="text" id="goal-title" placeholder="Titre (ex: Acheter une moto)" required autocomplete="off">
                 <input type="text" id="goal-desc" placeholder="Description (optionnelle)" autocomplete="off">
-                <input type="date" id="goal-date">
+                <p class="subtitle" style="font-size:0.8rem; margin-bottom: 4px;">Date cible :</p>
+                <input type="date" id="goal-date" required>
                 
                 <div class="checkbox-container">
                     <input type="checkbox" id="goal-has-price" onchange="togglePriceField(this.checked)">
@@ -164,7 +165,7 @@
 
                 <div class="modal-buttons">
                     <button type="button" class="btn-text" onclick="closeModal('goal-modal')">Annuler</button>
-                    <button type="submit" class="btn-primary">Créer</button>
+                    <button type="submit" class="btn-primary interactive-btn">Créer</button>
                 </div>
             </form>
         </div>
