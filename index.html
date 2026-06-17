@@ -20,15 +20,15 @@
             <div class="card-grid">
                 <div class="glass-card interactive-card" onclick="switchTab('school')">
                     <div class="card-icon blue-icon"><i data-lucide="calendar"></i></div>
-                    <h3 style="color: #FFF;">Emploi du temps</h3>
+                    <h3>Emploi du temps</h3>
                     <div id="home-schedule-status">
                         <p class="loading">Chargement...</p>
                     </div>
                 </div>
 
-                <div class="glass-card interactive-card sport-card" onclick="switchTab('sport')">
+                <div class="glass-card interactive-card" onclick="switchTab('sport')">
                     <div class="card-icon"><i data-lucide="dumbbell"></i></div>
-                    <h3 style="color: #FFF;">Mission Sport</h3>
+                    <h3>Mission Sport</h3>
                     <div id="home-sport-mission">
                         <p id="home-mission-text">15 pompes</p>
                         <button id="btn-complete-mission" class="btn-primary" onclick="event.stopPropagation(); completeDailyMission()">Mission terminée ✨</button>
@@ -37,7 +37,7 @@
 
                 <div class="glass-card">
                     <div class="card-icon blue-icon"><i data-lucide="trending-up"></i></div>
-                    <h3 style="color: #FFF;">Progression du jour</h3>
+                    <h3>Progression du jour</h3>
                     <div class="progress-bar-linear">
                         <div class="progress-fill" id="day-progress-fill" style="width: 0%"></div>
                     </div>
@@ -46,16 +46,16 @@
                 </div>
 
                 <div class="glass-card interactive-card" onclick="switchTab('goals')">
-                    <div class="card-icon"><i data-lucide="target" style="color: #8B5CF6;"></i></div>
-                    <h3 style="color: #FFF;">Objectif en cours</h3>
+                    <div class="card-icon purple-icon"><i data-lucide="target"></i></div>
+                    <h3>Objectif en cours</h3>
                     <div id="home-goal-summary">
                         <p class="subtitle">Aucun objectif. Fixe-toi un but !</p>
                     </div>
                 </div>
 
-                <div class="glass-card motivation-card">
+                <div class="glass-card">
                     <div class="card-icon"><i data-lucide="sparkles"></i></div>
-                    <h3 style="color: #FFF;">Motivation</h3>
+                    <h3>Motivation</h3>
                     <p id="motivation-quote" class="quote">"Le succès n'est pas un accident, c'est le résultat d'une routine implacable."</p>
                 </div>
             </div>
@@ -77,8 +77,7 @@
                 <iframe id="pdf-viewer" width="100%" height="100%" style="border: none;"></iframe>
             </div>
 
-            <div id="courses-list" class="list-container">
-                </div>
+            <div id="courses-list" class="list-container"></div>
         </section>
 
         <section id="tab-sport" class="app-page">
@@ -87,14 +86,13 @@
                 <p class="subtitle">Bâtis ton physique de rêve.</p>
             </header>
 
-            <div class="glass-card sport-card interactive-card">
-                <h3 style="color: #FFF;">⚡ Quête du Jour</h3>
-                <p style="color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-bottom: 12px;">Génère une routine rapide.</p>
-                <button class="btn-primary" style="background: rgba(255,255,255,0.2); color: white;" onclick="generateDailyWorkout()">Générer routine</button>
+            <div class="glass-card interactive-card">
+                <h3>⚡ Quête du Jour</h3>
+                <p class="subtitle" style="margin-bottom: 16px;">Génère une routine rapide.</p>
+                <button class="btn-primary" onclick="generateDailyWorkout()">Générer routine</button>
             </div>
 
-            <div id="workout-list" class="list-container" style="margin-top: 20px;">
-                </div>
+            <div id="workout-list" class="list-container" style="margin-top: 20px;"></div>
         </section>
 
         <section id="tab-goals" class="app-page">
@@ -107,8 +105,20 @@
                 <button class="btn-secondary interactive-btn" onclick="openModal('goal-modal')" style="width: 100%;"><i data-lucide="plus"></i> Nouvel Objectif</button>
             </div>
 
-            <div id="goals-list" class="list-container">
-                </div>
+            <div id="goals-list" class="list-container"></div>
+        </section>
+
+        <section id="tab-qrcodes" class="app-page">
+            <header class="page-header">
+                <h1>Mes Codes</h1>
+                <p class="subtitle">Insta, Snap, Revolut... tout à portée.</p>
+            </header>
+
+            <div class="action-bar">
+                <button class="btn-secondary interactive-btn" onclick="openModal('qr-modal')" style="width: 100%;"><i data-lucide="plus"></i> Ajouter un QR Code</button>
+            </div>
+
+            <div id="qrcodes-list" class="qr-grid"></div>
         </section>
     </main>
 
@@ -129,6 +139,10 @@
             <div class="icon-wrapper"><i data-lucide="target"></i></div>
             <span>Objectifs</span>
         </button>
+        <button class="nav-item" data-tab="qrcodes" onclick="switchTab('qrcodes')">
+            <div class="icon-wrapper"><i data-lucide="qr-code"></i></div>
+            <span>Codes</span>
+        </button>
     </nav>
 
     <div id="course-modal" class="modal-overlay">
@@ -141,8 +155,8 @@
                     <input type="time" id="course-end" required>
                 </div>
                 <input type="text" id="course-room" placeholder="Salle (Optionnel)">
-                <div class="modal-buttons">
-                    <button type="button" class="btn-text" onclick="closeModal('course-modal')">Annuler</button>
+                <div class="modal-buttons equal-buttons">
+                    <button type="button" class="btn-secondary" onclick="closeModal('course-modal')">Annuler</button>
                     <button type="submit" class="btn-primary">Enregistrer</button>
                 </div>
             </form>
@@ -157,16 +171,19 @@
                 <input type="text" id="goal-desc" placeholder="Description">
                 <p class="subtitle" style="font-size:0.8rem; margin-bottom: 4px;">Date cible :</p>
                 <input type="date" id="goal-date" required>
+                
                 <div class="checkbox-container">
                     <input type="checkbox" id="goal-has-price" onchange="togglePriceField(this.checked)">
                     <label for="goal-has-price">Cet objectif a un prix</label>
                 </div>
+                
                 <div id="price-fields" class="form-row" style="display: none;">
                     <input type="number" id="goal-current-money" placeholder="Actuel (€)" min="0">
                     <input type="number" id="goal-target-money" placeholder="Cible (€)" min="0">
                 </div>
-                <div class="modal-buttons">
-                    <button type="button" class="btn-text" onclick="closeModal('goal-modal')">Annuler</button>
+                
+                <div class="modal-buttons equal-buttons">
+                    <button type="button" class="btn-secondary" onclick="closeModal('goal-modal')">Annuler</button>
                     <button type="submit" class="btn-primary">Créer</button>
                 </div>
             </form>
@@ -174,16 +191,46 @@
     </div>
 
     <div id="confirm-modal" class="modal-overlay">
-        <div class="glass-card modal-content" style="text-align: center;">
+        <div class="glass-card modal-content text-center">
             <div class="card-icon" style="background: rgba(239, 68, 68, 0.1); margin: 0 auto 15px auto;">
                 <i data-lucide="alert-triangle" style="color: #EF4444;"></i>
             </div>
             <h2>Es-tu sûr ?</h2>
             <p class="subtitle" style="margin-bottom: 20px;">Cet objectif sera supprimé définitivement.</p>
-            <div class="modal-buttons" style="justify-content: center;">
+            <div class="modal-buttons equal-buttons">
                 <button class="btn-secondary" onclick="closeModal('confirm-modal')">Annuler</button>
                 <button class="btn-primary btn-danger" id="confirm-delete-btn">Supprimer</button>
             </div>
+        </div>
+    </div>
+
+    <div id="qr-modal" class="modal-overlay">
+        <div class="glass-card modal-content">
+            <h2>Ajouter un QR Code</h2>
+            <form id="qr-form" onsubmit="saveQRCode(event)">
+                <input type="text" id="qr-name" placeholder="Nom (ex: Mon Insta, Revolut)" required>
+                
+                <div class="file-upload-box" onclick="document.getElementById('qr-image-upload').click()">
+                    <i data-lucide="image" style="width: 24px; height: 24px; margin-bottom: 8px;"></i>
+                    <p class="subtitle">Clique pour choisir une image</p>
+                </div>
+                <input type="file" id="qr-image-upload" accept="image/*" style="display: none;" onchange="handleQRImageUpload(event)">
+                
+                <img id="qr-preview-img" src="" alt="Aperçu" style="display: none; width: 100%; border-radius: 12px; margin-top: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <input type="hidden" id="qr-base64-data">
+
+                <div class="modal-buttons equal-buttons">
+                    <button type="button" class="btn-secondary" onclick="closeModal('qr-modal')">Annuler</button>
+                    <button type="submit" class="btn-primary" id="qr-submit-btn" disabled>Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="qr-fullscreen-modal" class="modal-overlay" onclick="closeModal('qr-fullscreen-modal')">
+        <div class="fullscreen-content" onclick="event.stopPropagation()">
+            <img id="qr-fullscreen-img" src="" alt="QR Code" style="width: 100%; border-radius: 20px;">
+            <button class="btn-secondary interactive-btn" style="margin-top: 20px; width: 100%;" onclick="closeModal('qr-fullscreen-modal')">Fermer</button>
         </div>
     </div>
 
