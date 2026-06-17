@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LiquidLife - Organiseur Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="liquid-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <main class="app-container">
+        
+        <section id="tab-home" class="app-page active">
+            <header class="page-header">
+                <span class="user-badge">Niveau <span id="user-level">1</span> • <span id="user-xp">0</span> XP</span>
+                <h1>Hello ! 👋</h1>
+                <p class="subtitle">Prêt à dominer ta journée ?</p>
+            </header>
+
+            <div class="card-grid">
+                <div class="glass-card liquid-card" onclick="switchTab('school')">
+                    <div class="card-icon"><i data-lucide="calendar"></i></div>
+                    <h3>Emploi du temps</h3>
+                    <div id="home-schedule-status">
+                        <p class="loading">Chargement...</p>
+                    </div>
+                </div>
+
+                <div class="glass-card liquid-card highlight-card">
+                    <div class="card-icon"><i data-lucide="dumbbell"></i></div>
+                    <h3>Mission Sport</h3>
+                    <div id="home-sport-mission">
+                        <p id="home-mission-text">15 pompes</p>
+                        <button id="btn-complete-mission" class="btn-primary">Mission terminée ✨</button>
+                    </div>
+                </div>
+
+                <div class="glass-card liquid-card">
+                    <div class="card-icon"><i data-lucide="trending-up"></i></div>
+                    <h3>Progression du jour</h3>
+                    <div class="progress-container-circle">
+                        <div class="progress-bar-linear">
+                            <div class="progress-fill" id="day-progress-fill" style="width: 0%"></div>
+                        </div>
+                        <p id="day-progress-text">0% complété</p>
+                    </div>
+                    <div class="streak-badge"><i data-lucide="zap"></i> Série : <span id="streak-count">0</span> jours</div>
+                </div>
+
+                <div class="glass-card liquid-card row-span">
+                    <div class="card-icon"><i data-lucide="sparkles"></i></div>
+                    <h3>Motivation</h3>
+                    <p id="motivation-quote" class="quote">"Le secret pour avancer, c'est de commencer."</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-school" class="app-page">
+            <header class="page-header">
+                <h1>Mon Agenda</h1>
+                <p class="subtitle" id="school-timer">Aucun cours en cours</p>
+            </header>
+
+            <div class="action-bar">
+                <button class="btn-secondary" onclick="openModal('course-modal')"><i data-lucide="plus"></i> Ajouter un cours</button>
+            </div>
+
+            <div id="courses-list" class="list-container">
+                </div>
+        </section>
+
+        <section id="tab-sport" class="app-page">
+            <header class="page-header">
+                <h1>Entraînement</h1>
+                <p class="subtitle">Gagne de l'XP en restant fit !</p>
+            </header>
+
+            <div class="glass-card workout-generator">
+                <h3>⚡ Quête du Jour</h3>
+                <p>Génère une routine rapide au poids du corps.</p>
+                <button class="btn-primary" onclick="generateDailyWorkout()">Générer une routine</button>
+            </div>
+
+            <div id="workout-list" class="list-container" style="margin-top: 20px;">
+                </div>
+        </section>
+
+        <section id="tab-goals" class="app-page">
+            <header class="page-header">
+                <h1>Mes Objectifs</h1>
+                <p class="subtitle">Visualise tes rêves et projets</p>
+            </header>
+
+            <div class="action-bar">
+                <button class="btn-secondary" onclick="openModal('goal-modal')"><i data-lucide="plus"></i> Nouvel Objectif</button>
+            </div>
+
+            <div id="goals-list" class="list-container">
+                </div>
+        </section>
+    </main>
+
+    <nav class="floating-nav">
+        <button class="nav-item active" data-tab="home" onclick="switchTab('home')">
+            <i data-lucide="home"></i>
+            <span>Accueil</span>
+        </button>
+        <button class="nav-item" data-tab="school" onclick="switchTab('school')">
+            <i data-lucide="graduation-cap"></i>
+            <span>Scolaire</span>
+        </button>
+        <button class="nav-item" data-tab="sport" onclick="switchTab('sport')">
+            <i data-lucide="dumbbell"></i>
+            <span>Sport</span>
+        </button>
+        <button class="nav-item" data-tab="goals" onclick="switchTab('goals')">
+            <i data-lucide="target"></i>
+            <span>Objectifs</span>
+        </button>
+    </nav>
+
+    <div id="course-modal" class="modal-overlay">
+        <div class="glass-card modal-content">
+            <h2>Ajouter un cours</h2>
+            <form id="course-form" onsubmit="saveCourse(event)">
+                <input type="text" id="course-subject" placeholder="Matière (ex: Maths)" required autocomplete="off">
+                <div class="form-row">
+                    <input type="time" id="course-start" required>
+                    <input type="time" id="course-end" required>
+                </div>
+                <input type="text" id="course-room" placeholder="Salle (ex: B204, Optionnel)" autocomplete="off">
+                <div class="modal-buttons">
+                    <button type="button" class="btn-text" onclick="closeModal('course-modal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="goal-modal" class="modal-overlay">
+        <div class="glass-card modal-content">
+            <h2>Nouvel Objectif</h2>
+            <form id="goal-form" onsubmit="saveGoal(event)">
+                <input type="text" id="goal-title" placeholder="Titre (ex: Acheter une moto)" required autocomplete="off">
+                <input type="text" id="goal-desc" placeholder="Description (optionnelle)" autocomplete="off">
+                <input type="date" id="goal-date">
+                
+                <div class="checkbox-container">
+                    <input type="checkbox" id="goal-has-price" onchange="togglePriceField(this.checked)">
+                    <label for="goal-has-price">Cet objectif implique une cagnotte / un prix</label>
+                </div>
+
+                <div id="price-fields" class="form-row" style="display: none;">
+                    <input type="number" id="goal-current-money" placeholder="Montant actuel (€)" min="0">
+                    <input type="number" id="goal-target-money" placeholder="Montant cible (€)" min="0">
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" class="btn-text" onclick="closeModal('goal-modal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Créer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
