@@ -3,19 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LiquidLife - Organiseur Premium</title>
+    <title>LiquidLife - Premium</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div class="liquid-bg">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
+    <div class="liquid-bg"></div>
 
     <main class="app-container">
-        
         <section id="tab-home" class="app-page active">
             <header class="page-header">
                 <h1>Hello ! 👋</h1>
@@ -23,38 +18,44 @@
             </header>
 
             <div class="card-grid">
-                <div class="glass-card liquid-card interactive-card" onclick="switchTab('school')">
-                    <div class="card-icon"><i data-lucide="calendar"></i></div>
-                    <h3>Emploi du temps</h3>
+                <div class="glass-card interactive-card" onclick="switchTab('school')">
+                    <div class="card-icon blue-icon"><i data-lucide="calendar"></i></div>
+                    <h3 style="color: #FFF;">Emploi du temps</h3>
                     <div id="home-schedule-status">
                         <p class="loading">Chargement...</p>
                     </div>
                 </div>
 
-                <div class="glass-card liquid-card highlight-card interactive-card" onclick="switchTab('sport')">
+                <div class="glass-card interactive-card sport-card" onclick="switchTab('sport')">
                     <div class="card-icon"><i data-lucide="dumbbell"></i></div>
-                    <h3>Mission Sport</h3>
+                    <h3 style="color: #FFF;">Mission Sport</h3>
                     <div id="home-sport-mission">
                         <p id="home-mission-text">15 pompes</p>
                         <button id="btn-complete-mission" class="btn-primary" onclick="event.stopPropagation(); completeDailyMission()">Mission terminée ✨</button>
                     </div>
                 </div>
 
-                <div class="glass-card liquid-card">
-                    <div class="card-icon"><i data-lucide="trending-up"></i></div>
-                    <h3>Progression du jour</h3>
-                    <div class="progress-container-circle">
-                        <div class="progress-bar-linear">
-                            <div class="progress-fill" id="day-progress-fill" style="width: 0%"></div>
-                        </div>
-                        <p id="day-progress-text">0% complété</p>
+                <div class="glass-card">
+                    <div class="card-icon blue-icon"><i data-lucide="trending-up"></i></div>
+                    <h3 style="color: #FFF;">Progression du jour</h3>
+                    <div class="progress-bar-linear">
+                        <div class="progress-fill" id="day-progress-fill" style="width: 0%"></div>
                     </div>
-                    <div class="streak-badge"><i data-lucide="zap"></i> Série : <span id="streak-count">0</span> jours</div>
+                    <p id="day-progress-text" class="subtitle" style="margin-top: 8px;">0% complété</p>
+                    <div class="streak-badge"><i data-lucide="flame"></i> Série : <span id="streak-count">0</span> jours</div>
                 </div>
 
-                <div class="glass-card liquid-card row-span">
+                <div class="glass-card interactive-card" onclick="switchTab('goals')">
+                    <div class="card-icon"><i data-lucide="target" style="color: #8B5CF6;"></i></div>
+                    <h3 style="color: #FFF;">Objectif en cours</h3>
+                    <div id="home-goal-summary">
+                        <p class="subtitle">Aucun objectif. Fixe-toi un but !</p>
+                    </div>
+                </div>
+
+                <div class="glass-card motivation-card">
                     <div class="card-icon"><i data-lucide="sparkles"></i></div>
-                    <h3>Motivation</h3>
+                    <h3 style="color: #FFF;">Motivation</h3>
                     <p id="motivation-quote" class="quote">"Le succès n'est pas un accident, c'est le résultat d'une routine implacable."</p>
                 </div>
             </div>
@@ -63,13 +64,17 @@
         <section id="tab-school" class="app-page">
             <header class="page-header">
                 <h1>Mon Agenda</h1>
-                <p class="subtitle" id="school-timer">Aucun cours en cours</p>
+                <p class="subtitle" id="school-timer">Gère ton planning</p>
             </header>
 
             <div class="action-bar" style="display: flex; gap: 10px;">
-                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Ajouter</button>
-                <button class="btn-secondary interactive-btn" onclick="document.getElementById('ics-upload').click()" style="flex: 1;"><i data-lucide="upload"></i> Import .ics</button>
-                <input type="file" id="ics-upload" accept=".ics" style="display: none;" onchange="importEDT(this)">
+                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Cours</button>
+                <button class="btn-secondary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1;"><i data-lucide="file-text"></i> Importer PDF</button>
+                <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="importPDF(this)">
+            </div>
+
+            <div id="pdf-container" class="glass-card" style="display: none; height: 300px; padding: 0; overflow: hidden; margin-bottom: 20px;">
+                <iframe id="pdf-viewer" width="100%" height="100%" style="border: none;"></iframe>
             </div>
 
             <div id="courses-list" class="list-container">
@@ -82,10 +87,10 @@
                 <p class="subtitle">Bâtis ton physique de rêve.</p>
             </header>
 
-            <div class="glass-card workout-generator">
-                <h3>⚡ Quête du Jour</h3>
-                <p>Génère une routine rapide au poids du corps.</p>
-                <button class="btn-primary interactive-btn" onclick="generateDailyWorkout()">Générer une routine</button>
+            <div class="glass-card sport-card interactive-card">
+                <h3 style="color: #FFF;">⚡ Quête du Jour</h3>
+                <p style="color: rgba(255,255,255,0.8); font-size: 0.9rem; margin-bottom: 12px;">Génère une routine rapide.</p>
+                <button class="btn-primary" style="background: rgba(255,255,255,0.2); color: white;" onclick="generateDailyWorkout()">Générer routine</button>
             </div>
 
             <div id="workout-list" class="list-container" style="margin-top: 20px;">
@@ -95,11 +100,11 @@
         <section id="tab-goals" class="app-page">
             <header class="page-header">
                 <h1>Mes Objectifs</h1>
-                <p class="subtitle">Visualise tes rêves et projets</p>
+                <p class="subtitle">Visualise tes rêves</p>
             </header>
 
             <div class="action-bar">
-                <button class="btn-secondary interactive-btn" onclick="openModal('goal-modal')"><i data-lucide="plus"></i> Nouvel Objectif</button>
+                <button class="btn-secondary interactive-btn" onclick="openModal('goal-modal')" style="width: 100%;"><i data-lucide="plus"></i> Nouvel Objectif</button>
             </div>
 
             <div id="goals-list" class="list-container">
@@ -109,19 +114,19 @@
 
     <nav class="floating-nav">
         <button class="nav-item active" data-tab="home" onclick="switchTab('home')">
-            <i data-lucide="home"></i>
+            <div class="icon-wrapper"><i data-lucide="home"></i></div>
             <span>Accueil</span>
         </button>
         <button class="nav-item" data-tab="school" onclick="switchTab('school')">
-            <i data-lucide="graduation-cap"></i>
+            <div class="icon-wrapper"><i data-lucide="graduation-cap"></i></div>
             <span>Scolaire</span>
         </button>
         <button class="nav-item" data-tab="sport" onclick="switchTab('sport')">
-            <i data-lucide="dumbbell"></i>
+            <div class="icon-wrapper"><i data-lucide="dumbbell"></i></div>
             <span>Sport</span>
         </button>
         <button class="nav-item" data-tab="goals" onclick="switchTab('goals')">
-            <i data-lucide="target"></i>
+            <div class="icon-wrapper"><i data-lucide="target"></i></div>
             <span>Objectifs</span>
         </button>
     </nav>
@@ -130,15 +135,15 @@
         <div class="glass-card modal-content">
             <h2>Ajouter un cours</h2>
             <form id="course-form" onsubmit="saveCourse(event)">
-                <input type="text" id="course-subject" placeholder="Matière (ex: Maths)" required autocomplete="off">
+                <input type="text" id="course-subject" placeholder="Matière (ex: Maths)" required>
                 <div class="form-row">
                     <input type="time" id="course-start" required>
                     <input type="time" id="course-end" required>
                 </div>
-                <input type="text" id="course-room" placeholder="Salle (ex: B204, Optionnel)" autocomplete="off">
+                <input type="text" id="course-room" placeholder="Salle (Optionnel)">
                 <div class="modal-buttons">
                     <button type="button" class="btn-text" onclick="closeModal('course-modal')">Annuler</button>
-                    <button type="submit" class="btn-primary interactive-btn">Enregistrer</button>
+                    <button type="submit" class="btn-primary">Enregistrer</button>
                 </div>
             </form>
         </div>
@@ -148,26 +153,37 @@
         <div class="glass-card modal-content">
             <h2>Nouvel Objectif</h2>
             <form id="goal-form" onsubmit="saveGoal(event)">
-                <input type="text" id="goal-title" placeholder="Titre (ex: Acheter une moto)" required autocomplete="off">
-                <input type="text" id="goal-desc" placeholder="Description (optionnelle)" autocomplete="off">
+                <input type="text" id="goal-title" placeholder="Titre (ex: Permis, Supercar)" required>
+                <input type="text" id="goal-desc" placeholder="Description">
                 <p class="subtitle" style="font-size:0.8rem; margin-bottom: 4px;">Date cible :</p>
                 <input type="date" id="goal-date" required>
-                
                 <div class="checkbox-container">
                     <input type="checkbox" id="goal-has-price" onchange="togglePriceField(this.checked)">
-                    <label for="goal-has-price">Cet objectif implique une cagnotte / un prix</label>
+                    <label for="goal-has-price">Cet objectif a un prix</label>
                 </div>
-
                 <div id="price-fields" class="form-row" style="display: none;">
-                    <input type="number" id="goal-current-money" placeholder="Montant actuel (€)" min="0">
-                    <input type="number" id="goal-target-money" placeholder="Montant cible (€)" min="0">
+                    <input type="number" id="goal-current-money" placeholder="Actuel (€)" min="0">
+                    <input type="number" id="goal-target-money" placeholder="Cible (€)" min="0">
                 </div>
-
                 <div class="modal-buttons">
                     <button type="button" class="btn-text" onclick="closeModal('goal-modal')">Annuler</button>
-                    <button type="submit" class="btn-primary interactive-btn">Créer</button>
+                    <button type="submit" class="btn-primary">Créer</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="glass-card modal-content" style="text-align: center;">
+            <div class="card-icon" style="background: rgba(239, 68, 68, 0.1); margin: 0 auto 15px auto;">
+                <i data-lucide="alert-triangle" style="color: #EF4444;"></i>
+            </div>
+            <h2>Es-tu sûr ?</h2>
+            <p class="subtitle" style="margin-bottom: 20px;">Cet objectif sera supprimé définitivement.</p>
+            <div class="modal-buttons" style="justify-content: center;">
+                <button class="btn-secondary" onclick="closeModal('confirm-modal')">Annuler</button>
+                <button class="btn-primary btn-danger" id="confirm-delete-btn">Supprimer</button>
+            </div>
         </div>
     </div>
 
