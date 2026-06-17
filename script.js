@@ -1,9 +1,7 @@
 // ================= DATA MANAGEMENT (LOCALSTORAGE) ================= */
 let state = {
-    xp: parseInt(localStorage.getItem('ll_xp')) || 0,
-    level: parseInt(localStorage.getItem('ll_level')) || 1,
     streak: parseInt(localStorage.getItem('ll_streak')) || 0,
-    lastActiveDay: localStorage.getItem('ll_lastDay') || "",
+    lastActiveDay: localStorage.getItem('ll_lastDay') || "", // Le dernier jour où une mission a été validée
     dailyMissionCompleted: localStorage.getItem('ll_missionCompleted') === 'true',
     currentMission: localStorage.getItem('ll_currentMission') || "15 pompes",
     courses: JSON.parse(localStorage.getItem('ll_courses')) || [],
@@ -12,18 +10,17 @@ let state = {
 };
 
 const quotes = [
-    "Le secret pour avancer, c'est de commencer.",
-    "Chaque petite habitude mène à de grands succès.",
-    "Deviens la meilleure version de toi-même, jour après jour.",
-    "Discipline égale liberté. Reste focus !",
-    "N'attends pas le bon moment, crée-le."
+    "Une supercar ne s'achète pas avec des rêves, mais avec une discipline de fer.",
+    "Chaque répétition aujourd'hui est un billet vers la liberté financière de demain.",
+    "La richesse commence par la maîtrise de soi. Continue ta quête.",
+    "Tes habitudes actuelles construisent ton garage de rêve. Reste focus.",
+    "Le succès n'est pas un accident, c'est le résultat d'une routine implacable."
 ];
 
 // Instanciation initiale des icônes Lucide
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
-    initApp();
-    checkStreak();
+    checkAppDay();
     renderAll();
     
     // Rafraîchir l'horloge scolaire toutes les minutes
@@ -31,8 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function saveState() {
-    localStorage.setItem('ll_xp', state.xp);
-    localStorage.setItem('ll_level', state.level);
     localStorage.setItem('ll_streak', state.streak);
     localStorage.setItem('ll_lastDay', state.lastActiveDay);
     localStorage.setItem('ll_missionCompleted', state.dailyMissionCompleted);
@@ -42,39 +37,42 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
 }
 
-// ================= SYSTÈME DE STREAKS ET EXP ================= */
-function checkStreak() {
+// ================= SYSTÈME DE STREAKS ET VÉRIFICATION DU JOUR ================= */
+function checkAppDay() {
     const today = new Date().toDateString();
-    if (state.lastActiveDay !== today) {
-        if (state.lastActiveDay) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            if (state.lastActiveDay !== yesterday.toDateString()) {
-                state.streak = 0; // Réinitialisation si un jour est sauté
-            }
+    const storedDay = localStorage.getItem('ll_currentDay') || "";
+    
+    // Si c'est un nouveau jour pour l'application
+    if (storedDay !== today) {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        // On vérifie si la mission a été complétée hier ou aujourd'hui. 
+        // Si non, on casse la série.
+        if (state.lastActiveDay !== yesterday.toDateString() && state.lastActiveDay !== today) {
+            state.streak = 0;
         }
-        state.lastActiveDay = today;
+        
+        // Réinitialiser la mission quotidienne
         state.dailyMissionCompleted = false;
+        localStorage.setItem('ll_currentDay', today);
+        
         // Changer de citation
         document.getElementById('motivation-quote').innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
         saveState();
     }
 }
 
-function addXP(amount) {
-    state.xp += amount;
-    // Formule simple d'XP par niveau : 100 XP par palier
-    let newLevel = Math.floor(state.xp / 100) + 1;
-    if (newLevel > state.level) {
-        state.level = newLevel;
-        triggerLevelUpAnimation();
-    }
+function completeDailyMission() {
+    if (state.dailyMissionCompleted) return; // Empêche de valider 2 fois le même jour
+    
+    const today = new Date().toDateString();
+    state.dailyMissionCompleted = true;
+    state.lastActiveDay = today;
+    state.streak += 1; // Incrémente de +1 seulement
+    
     saveState();
-    renderUserStats();
-}
-
-function triggerLevelUpAnimation() {
-    alert(`🎉 FÉLICITATIONS ! Tu passes au Niveau ${state.level} ! Continue comme ça.`);
+    renderAll();
 }
 
 // ================= GESTION DES ONGLETS ================= */
@@ -85,35 +83,17 @@ function switchTab(tabId) {
     document.getElementById(`tab-${tabId}`).classList.add('active');
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
 
-    // Mettre à jour les données à l'ouverture de l'onglet
     renderAll();
 }
 
 // ================= AFFICHAGE DES ÉLÉMENTS ================= */
-function initApp() {
-    document.getElementById('btn-complete-mission').addEventListener('click', () => {
-        if (!state.dailyMissionCompleted) {
-            state.dailyMissionCompleted = true;
-            state.streak += 1;
-            addXP(30);
-            saveState();
-            renderAll();
-        }
-    });
-}
-
-function renderUserStats() {
-    document.getElementById('user-level').innerText = state.level;
-    document.getElementById('user-xp').innerText = state.xp % 100;
-    document.getElementById('streak-count').innerText = state.streak;
-}
-
 function renderAll() {
-    renderUserStats();
+    document.getElementById('streak-count').innerText = state.streak;
     
     // Accueil - Mission Sportive
     const missionBtn = document.getElementById('btn-complete-mission');
     document.getElementById('home-mission-text').innerText = state.currentMission;
+    
     if (state.dailyMissionCompleted) {
         missionBtn.innerText = "Validé ! 🌟";
         missionBtn.style.background = "var(--success-gradient)";
@@ -124,11 +104,9 @@ function renderAll() {
         missionBtn.disabled = false;
     }
 
-    // Progression globale du jour
-    let totalTasks = 1; // La mission sportive compte pour 1
+    // Progression globale du jour (mission sportive)
     let completedTasks = state.dailyMissionCompleted ? 1 : 0;
-    
-    const progressPercent = Math.round((completedTasks / totalTasks) * 100);
+    const progressPercent = Math.round((completedTasks / 1) * 100);
     document.getElementById('day-progress-fill').style.width = `${progressPercent}%`;
     document.getElementById('day-progress-text').innerText = `${progressPercent}% complété`;
 
@@ -196,7 +174,7 @@ function renderCoursesList() {
     list.innerHTML = "";
     
     if(state.courses.length === 0) {
-        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Clique sur '+' pour planifier ta journée de cours.</p>";
+        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Clique sur '+' ou importe ton fichier .ics</p>";
         return;
     }
 
@@ -250,23 +228,31 @@ function timeToMinutes(timeString) {
     return h * 60 + m;
 }
 
+// Fonction préparée pour l'import ICS
+function importEDT(input) {
+    const file = input.files[0];
+    if (file) {
+        // Dans le futur, ajouter la librairie ical.js pour extraire les données ici
+        console.log("Fichier importé :", file.name);
+        alert("Fichier " + file.name + " détecté !\n(Note : L'intégration automatique des données .ics nécessitera une librairie externe comme ical.js pour fonctionner complètement).");
+    }
+}
+
 // ================= VOLET SPORT ================= */
 const baseExercises = ["Pompes", "Crunchs", "Dips", "Squats", "Gainage (sec)", "Élastiques haut du corps"];
 
 function generateDailyWorkout() {
-    // Choix aléatoire de 3 exercices avec répétitions calibrées pour un jeune de 15 ans
     let routine = [];
     let tempExercises = [...baseExercises];
     
     for (let i = 0; i < 3; i++) {
         let randIdx = Math.floor(Math.random() * tempExercises.length);
         let ex = tempExercises.splice(randIdx, 1)[0];
-        let reps = ex.includes("sec") ? 45 : 15; // 45s de gainage ou 15 reps
+        let reps = ex.includes("sec") ? 45 : 15;
         routine.push({ name: ex, target: reps, done: false });
     }
     
     state.workoutGenerated = routine;
-    // On synchronise aussi l'exercice d'accueil rapide avec le premier de la liste
     state.currentMission = `${routine[0].target} ${routine[0].name}`;
     state.dailyMissionCompleted = false;
     
@@ -303,7 +289,6 @@ function renderWorkout() {
 
 function completeWorkoutExercise(index) {
     state.workoutGenerated[index].done = true;
-    addXP(15);
     saveState();
     renderAll();
 }
@@ -336,7 +321,7 @@ function renderGoals() {
     list.innerHTML = "";
 
     if(state.goals.length === 0) {
-        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Ajoute des projets à long terme (Achat matériel, Diplômes, Défi Sport).</p>";
+        list.innerHTML = "<p class='subtitle' style='text-align:center;'>Ajoute des projets à long terme.</p>";
         return;
     }
 
@@ -378,9 +363,6 @@ function addMoneyToGoal(index) {
     let amt = prompt("Combien d'argent as-tu économisé pour cet objectif ? (€)");
     if(amt && !isNaN(amt)) {
         state.goals[index].currentMoney += parseFloat(amt);
-        if(state.goals[index].currentMoney >= state.goals[index].targetMoney) {
-            addXP(50); // Gros bonus XP de complétion
-        }
         saveState();
         renderAll();
     }
