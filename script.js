@@ -1,7 +1,7 @@
 // ================= DATA MANAGEMENT (LOCALSTORAGE) ================= */
 let state = {
     streak: parseInt(localStorage.getItem('ll_streak')) || 0,
-    lastActiveDay: localStorage.getItem('ll_lastDay') || "", // Le dernier jour où une mission a été validée
+    lastActiveDay: localStorage.getItem('ll_lastDay') || "", // Date exacte de la dernière mission validée
     dailyMissionCompleted: localStorage.getItem('ll_missionCompleted') === 'true',
     currentMission: localStorage.getItem('ll_currentMission') || "15 pompes",
     courses: JSON.parse(localStorage.getItem('ll_courses')) || [],
@@ -17,13 +17,11 @@ const quotes = [
     "Le succès n'est pas un accident, c'est le résultat d'une routine implacable."
 ];
 
-// Instanciation initiale des icônes Lucide
+// Instanciation initiale
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     checkAppDay();
     renderAll();
-    
-    // Rafraîchir l'horloge scolaire toutes les minutes
     setInterval(updateSchoolStatus, 60000);
 });
 
@@ -37,39 +35,49 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
 }
 
-// ================= SYSTÈME DE STREAKS ET VÉRIFICATION DU JOUR ================= */
+// ================= SYSTÈME DE STREAKS INFALLIBLE ================= */
 function checkAppDay() {
     const today = new Date().toDateString();
-    const storedDay = localStorage.getItem('ll_currentDay') || "";
     
-    // Si c'est un nouveau jour pour l'application
-    if (storedDay !== today) {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
+    // Vérification de la série (A-t-il raté un jour ?)
+    if (state.lastActiveDay) {
+        const lastActive = new Date(state.lastActiveDay);
+        const now = new Date(today);
+        const diffTime = Math.abs(now - lastActive);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
         
-        // On vérifie si la mission a été complétée hier ou aujourd'hui. 
-        // Si non, on casse la série.
-        if (state.lastActiveDay !== yesterday.toDateString() && state.lastActiveDay !== today) {
+        if (diffDays > 1) {
+            // Un jour a été sauté, on réinitialise la série
             state.streak = 0;
+            state.dailyMissionCompleted = false;
+        } else if (diffDays === 1) {
+            // Nouveau jour consécutif, mission pas encore faite
+            state.dailyMissionCompleted = false;
         }
-        
-        // Réinitialiser la mission quotidienne
-        state.dailyMissionCompleted = false;
-        localStorage.setItem('ll_currentDay', today);
-        
-        // Changer de citation
-        document.getElementById('motivation-quote').innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
-        saveState();
     }
+    
+    // Rotation quotidienne de la citation de motivation
+    const storedDay = localStorage.getItem('ll_currentDay');
+    if (storedDay !== today) {
+        document.getElementById('motivation-quote').innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
+        localStorage.setItem('ll_currentDay', today);
+    }
+    
+    saveState();
 }
 
 function completeDailyMission() {
-    if (state.dailyMissionCompleted) return; // Empêche de valider 2 fois le même jour
-    
     const today = new Date().toDateString();
+    
+    // Blocage strict : Impossible de valider deux fois le même jour
+    if (state.lastActiveDay === today) {
+        alert("Mission déjà validée pour aujourd'hui ! Reviens demain pour augmenter ta série.");
+        return;
+    }
+    
     state.dailyMissionCompleted = true;
     state.lastActiveDay = today;
-    state.streak += 1; // Incrémente de +1 seulement
+    state.streak += 1;
     
     saveState();
     renderAll();
@@ -104,10 +112,13 @@ function renderAll() {
         missionBtn.disabled = false;
     }
 
-    // Progression globale du jour (mission sportive)
     let completedTasks = state.dailyMissionCompleted ? 1 : 0;
     const progressPercent = Math.round((completedTasks / 1) * 100);
-    document.getElementById('day-progress-fill').style.width = `${progressPercent}%`;
+    
+    // On force un petit délai pour l'animation de la barre
+    setTimeout(() => {
+        document.getElementById('day-progress-fill').style.width = `${progressPercent}%`;
+    }, 50);
     document.getElementById('day-progress-text').innerText = `${progressPercent}% complété`;
 
     updateSchoolStatus();
@@ -128,7 +139,6 @@ function updateSchoolStatus() {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Trier les cours chronologiquement
     state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
     let currentCourse = null;
@@ -145,7 +155,6 @@ function updateSchoolStatus() {
         }
     }
 
-    // Affichage Accueil Rapide
     let homeHTML = "";
     if (currentCourse) {
         let timeLeft = timeToMinutes(currentCourse.end) - currentMinutes;
@@ -158,7 +167,6 @@ function updateSchoolStatus() {
     }
     document.getElementById('home-schedule-status').innerHTML = homeHTML;
 
-    // Affichage En-tête Page Scolaire
     if (currentCourse) {
         let timeLeft = timeToMinutes(currentCourse.end) - currentMinutes;
         document.getElementById('school-timer').innerText = `Cours actuel : ${currentCourse.subject} (finit dans ${timeLeft} min)`;
@@ -196,7 +204,7 @@ function renderCoursesList() {
                 <p><i data-lucide="clock" style="width:12px;height:12px;display:inline;"></i> ${course.start} - ${course.end} ${course.room ? ' | Salle ' + course.room : ''}</p>
             </div>
             <div class="item-actions">
-                <button class="btn-icon danger" onclick="deleteCourse(${index})"><i data-lucide="trash"></i></button>
+                <button class="btn-icon danger interactive-btn" onclick="deleteCourse(${index})"><i data-lucide="trash"></i></button>
             </div>
         `;
         list.appendChild(card);
@@ -228,12 +236,9 @@ function timeToMinutes(timeString) {
     return h * 60 + m;
 }
 
-// Fonction préparée pour l'import ICS
 function importEDT(input) {
     const file = input.files[0];
     if (file) {
-        // Dans le futur, ajouter la librairie ical.js pour extraire les données ici
-        console.log("Fichier importé :", file.name);
         alert("Fichier " + file.name + " détecté !\n(Note : L'intégration automatique des données .ics nécessitera une librairie externe comme ical.js pour fonctionner complètement).");
     }
 }
@@ -280,7 +285,7 @@ function renderWorkout() {
                 <p>Objectif : ${ex.target}</p>
             </div>
             <div class="item-actions">
-                ${!ex.done ? `<button class="btn-icon success" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<span>✓</span>'}
+                ${!ex.done ? `<button class="btn-icon success interactive-btn" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<span>✓</span>'}
             </div>
         `;
         list.appendChild(card);
@@ -303,12 +308,13 @@ function saveGoal(e) {
     const title = document.getElementById('goal-title').value;
     const desc = document.getElementById('goal-desc').value;
     const date = document.getElementById('goal-date').value;
+    const creationDate = new Date().toISOString().split('T')[0]; // Sauvegarde de la date de création
     const hasPrice = document.getElementById('goal-has-price').checked;
     
     let currentMoney = parseFloat(document.getElementById('goal-current-money').value) || 0;
     let targetMoney = parseFloat(document.getElementById('goal-target-money').value) || 0;
 
-    state.goals.push({ title, desc, date, hasPrice, currentMoney, targetMoney, progress: 0 });
+    state.goals.push({ title, desc, date, creationDate, hasPrice, currentMoney, targetMoney });
     saveState();
     closeModal('goal-modal');
     document.getElementById('goal-form').reset();
@@ -326,34 +332,62 @@ function renderGoals() {
     }
 
     state.goals.forEach((goal, index) => {
-        let percent = 0;
+        let moneyPercent = 0;
         let priceStatusHTML = "";
 
+        // Barre d'argent
         if (goal.hasPrice && goal.targetMoney > 0) {
-            percent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
-            priceStatusHTML = `<p class="subtitle">${goal.currentMoney}€ / ${goal.targetMoney}€ (${percent}%)</p>`;
+            moneyPercent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
+            priceStatusHTML = `
+                <p class="subtitle" style="margin-top: 8px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p>
+                <div class="progress-bar-linear">
+                    <div class="progress-fill" style="width: ${moneyPercent}%"></div>
+                </div>
+            `;
+        }
+
+        // Barre de temps
+        let timeProgressHTML = "";
+        if (goal.date && goal.creationDate) {
+            const start = new Date(goal.creationDate).getTime();
+            const end = new Date(goal.date).getTime();
+            const now = new Date().getTime();
+            
+            let timePercent = 0;
+            if (now >= end) {
+                timePercent = 100;
+            } else if (now > start) {
+                timePercent = Math.round(((now - start) / (end - start)) * 100);
+            }
+
+            timeProgressHTML = `
+                <p class="subtitle" style="font-size:0.75rem; margin-top:8px;">
+                    <i data-lucide="clock" style="width:10px;height:10px;display:inline;"></i> Progression du temps (Cible : ${goal.date})
+                </p>
+                <div class="progress-bar-linear" style="height: 4px; margin-top: 4px;">
+                    <div class="progress-fill time-fill" style="width: ${timePercent}%;"></div>
+                </div>
+            `;
+        } else if (goal.date && !goal.creationDate) {
+            // Rétrocompatibilité pour les anciens objectifs
+            timeProgressHTML = `<p class="subtitle" style="font-size:0.75rem;"><i data-lucide="calendar" style="width:10px;height:10px;display:inline;"></i> Cible : ${goal.date}</p>`;
         }
 
         const card = document.createElement('div');
         card.className = "glass-card";
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div>
+                <div style="flex: 1; padding-right: 10px;">
                     <h4 style="font-size:1.15rem; font-weight:700;">${goal.title}</h4>
                     <p class="subtitle" style="margin-bottom:6px;">${goal.desc || ''}</p>
-                    ${goal.date ? `<p class="subtitle" style="font-size:0.75rem;"><i data-lucide="calendar" style="width:10px;height:10px;display:inline;"></i> Cible : ${goal.date}</p>` : ''}
-                    ${priceStatusHTML}
                 </div>
                 <div class="item-actions">
-                    ${goal.hasPrice ? `<button class="btn-icon" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
-                    <button class="btn-icon danger" onclick="deleteGoal(${index})"><i data-lucide="trash"></i></button>
+                    ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
+                    <button class="btn-icon danger interactive-btn" onclick="deleteGoal(${index})"><i data-lucide="trash"></i></button>
                 </div>
             </div>
-            ${goal.hasPrice ? `
-                <div class="progress-bar-linear">
-                    <div class="progress-fill" style="width: ${percent}%"></div>
-                </div>
-            ` : ''}
+            ${timeProgressHTML}
+            ${priceStatusHTML}
         `;
         list.appendChild(card);
     });
@@ -369,9 +403,12 @@ function addMoneyToGoal(index) {
 }
 
 function deleteGoal(index) {
-    state.goals.splice(index, 1);
-    saveState();
-    renderAll();
+    // Demande de confirmation ajoutée ici
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet objectif ?")) {
+        state.goals.splice(index, 1);
+        saveState();
+        renderAll();
+    }
 }
 
 // ================= FENÊTRES MODALES (OUVERTURE/FERMETURE) ================= */
