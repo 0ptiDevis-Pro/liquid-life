@@ -82,25 +82,36 @@ body {
     100% { transform: translate(40px, 30px) scale(1.15); }
 }
 
-/* ================= APP CONTAINER ================= */
+/* ================= APP CONTAINER & SMOOTH TRANSITIONS ================= */
 .app-container {
     padding: 24px 20px 120px 20px;
-    max-width: 500px; /* Centré et optimisé pour le format smartphone */
+    max-width: 500px;
     margin: 0 auto;
 }
 
 .app-page {
     display: none;
-    animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+    /* Transition fluide avec effet de filtre */
+    transition: opacity 0.4s ease, backdrop-filter 0.4s ease;
 }
 
 .app-page.active {
     display: block;
+    animation: fadeInPage 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+@keyframes fadeInPage {
+    from { 
+        opacity: 0; 
+        transform: translateY(15px) scale(0.98); 
+        backdrop-filter: blur(0px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0) scale(1); 
+        backdrop-filter: blur(10px); 
+    }
 }
 
 /* ================= HEADERS ================= */
@@ -122,18 +133,6 @@ body {
     color: var(--text-muted);
     font-size: 1rem;
     margin-top: 4px;
-}
-
-.user-badge {
-    display: inline-block;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--glass-border);
-    padding: 6px 14px;
-    border-radius: var(--pill-radius);
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    backdrop-filter: blur(10px);
 }
 
 /* ================= GLASSMORPHISM CARDS ================= */
@@ -215,6 +214,7 @@ body {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     backdrop-filter: blur(10px);
 }
@@ -314,7 +314,6 @@ body {
     color: #10b981;
 }
 
-/* Status particuliers de l'emploi du temps */
 .course-card.current {
     border-color: #6366f1;
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
