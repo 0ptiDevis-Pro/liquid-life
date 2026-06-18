@@ -69,11 +69,11 @@
 
             <div class="action-bar" style="display: flex; gap: 10px;">
                 <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Manuel</button>
-                <button class="btn-primary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1; margin-top: 0;"><i data-lucide="file-text"></i> Auto (PDF)</button>
+                <button class="btn-primary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1; margin-top: 0;"><i data-lucide="file-text"></i> Sync PDF</button>
                 <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="importAndParsePDF(this)">
             </div>
             
-            <p id="pdf-loading-text" class="subtitle text-center" style="display: none; margin-bottom: 16px;">Analyse du PDF en cours... 🤖</p>
+            <p id="pdf-loading-text" class="subtitle text-center" style="display: none; margin-bottom: 16px;">Analyse intelligente du PDF... 🤖</p>
 
             <div id="courses-list" class="list-container"></div>
         </section>
@@ -165,7 +165,7 @@
         <div class="glass-card modal-content">
             <h2>Nouvel Objectif</h2>
             <form id="goal-form" onsubmit="saveGoal(event)">
-                <input type="text" id="goal-title" placeholder="Titre (ex: Permis, Supercar)" required>
+                <input type="text" id="goal-title" placeholder="Titre (ex: Permis, IndyCar)" required>
                 <input type="text" id="goal-desc" placeholder="Description">
                 <p class="subtitle" style="font-size:0.8rem; margin-bottom: 4px;">Date cible :</p>
                 <input type="date" id="goal-date" required>
@@ -194,7 +194,7 @@
                 <i data-lucide="alert-triangle" style="color: #EF4444;"></i>
             </div>
             <h2 id="confirm-modal-title">Es-tu sûr ?</h2>
-            <p class="subtitle" id="confirm-modal-desc" style="margin-bottom: 20px;">Cet élément sera supprimé définitivement.</p>
+            <p class="subtitle" id="confirm-modal-desc" style="margin-bottom: 20px;">Cette action est irréversible.</p>
             <div class="modal-buttons equal-buttons">
                 <button class="btn-secondary" onclick="closeModal('confirm-modal')">Annuler</button>
                 <button class="btn-primary btn-danger" id="confirm-delete-btn">Supprimer</button>
