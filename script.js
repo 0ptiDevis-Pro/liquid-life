@@ -113,6 +113,38 @@ function renderAll() {
     lucide.createIcons();
 }
 
+// ================= SAUVEGARDE EXPORT/IMPORT JSON ================= */
+function exportData() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "liquidlife_backup.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importedState = JSON.parse(e.target.result);
+            if(importedState) {
+                state = importedState;
+                saveState();
+                renderAll();
+                alert("Sauvegarde restaurée avec succès ! ✨");
+            }
+        } catch(err) {
+            alert("Erreur lors de la lecture du fichier JSON. Assure-toi que c'est le bon fichier de sauvegarde.");
+        }
+    }
+    reader.readAsText(file);
+    event.target.value = ''; // Réinitialiser l'input
+}
+
 // ================= LECTURE PDF INTELLIGENTE ================= */
 const subjectColors = {
     "maths": "#2F7CFF", "mathématiques": "#2F7CFF", "français": "#8B5CF6", "francais": "#8B5CF6",
@@ -292,7 +324,7 @@ function renderWorkout() {
 }
 function completeWorkoutExercise(index) { state.workoutGenerated[index].done = true; saveState(); renderAll(); }
 
-// ================= GESTION DES OBJECTIFS ================= */
+// ================= GESTION DES OBJECTIFS & COACHING PROACTIF ================= */
 function togglePriceField(checked) { document.getElementById('price-fields').style.display = checked ? 'flex' : 'none'; }
 function saveGoal(e) {
     e.preventDefault();
@@ -311,10 +343,19 @@ function saveGoal(e) {
 function calculateGoalTimePercent(goal) {
     if (!goal.date) return 0;
     const start = new Date(goal.creationDate || goal.date).getTime();
-    const end = new Date(goal.date).getTime();
+    const end = new Date(goal.date).setHours(0,0,0,0);
     const now = new Date().getTime();
     if (start === end) return 0;
     return (now >= end) ? 100 : (now > start ? Math.round(((now - start) / (end - start)) * 100) : 0);
+}
+
+function calculateDaysRemaining(targetDate) {
+    if (!targetDate) return 0;
+    const end = new Date(targetDate).setHours(0,0,0,0);
+    const now = new Date().setHours(0,0,0,0);
+    const diffTime = end - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
 }
 
 function renderGoals() {
@@ -323,23 +364,46 @@ function renderGoals() {
     if(state.goals.length === 0) return;
 
     state.goals.forEach((goal, index) => {
-        let priceHTML = "", timeHTML = "";
+        let priceHTML = "", timeHTML = "", daysBadge = "";
+        let daysRemaining = 0;
+
+        if (goal.date) {
+            daysRemaining = calculateDaysRemaining(goal.date);
+            daysBadge = `<p class="subtitle" style="font-size:0.85rem; font-weight:600; color:var(--warning-orange); margin-bottom: 8px;">⏳ Plus que ${daysRemaining} jours</p>`;
+            
+            const timePercent = calculateGoalTimePercent(goal);
+            timeHTML = `<div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: ${timePercent > 80 ? 'var(--warning-orange)' : 'var(--accent-blue)'};"></div></div>`;
+        }
+
         if (goal.hasPrice && goal.targetMoney > 0) {
             let moneyPercent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
-            priceHTML = `<p class="subtitle" style="margin-top: 8px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p>
-                <div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: var(--accent-purple);"></div></div>`;
-        }
-        if (goal.date) {
-            const timePercent = calculateGoalTimePercent(goal);
-            timeHTML = `<p class="subtitle" style="font-size:0.75rem; margin-top:8px;"><i data-lucide="clock" style="width:10px;height:10px;display:inline;"></i> Progression Temps</p>
-                <div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-blue);"></div></div>`;
+            let barColor = moneyPercent >= 80 ? "var(--success-green)" : "var(--accent-blue)";
+            
+            let coachingText = "";
+            if (goal.currentMoney >= goal.targetMoney) {
+                coachingText = "Financement complété ! 🎉";
+            } else if (goal.date) {
+                let argentRestant = goal.targetMoney - goal.currentMoney;
+                let semainesRestantes = Math.max(1, Math.ceil(daysRemaining / 7));
+                let montantHebdo = (argentRestant / semainesRestantes).toFixed(2);
+                coachingText = `Mets de côté ${montantHebdo}€ / semaine pour y arriver à temps.`;
+            }
+
+            priceHTML = `
+                <p class="subtitle" style="margin-top: 12px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p>
+                <div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>
+                ${coachingText ? `<p class="subtitle" style="font-size:0.8rem; margin-top:4px; color:#A1A1AA;">${coachingText}</p>` : ''}`;
         }
 
         const card = document.createElement('div');
         card.className = "glass-card";
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div style="flex: 1; padding-right: 10px;"><h4>${goal.title}</h4><p class="subtitle">${goal.desc || ''}</p></div>
+                <div style="flex: 1; padding-right: 10px;">
+                    <h4>${goal.title}</h4>
+                    <p class="subtitle" style="margin-bottom:8px;">${goal.desc || ''}</p>
+                    ${daysBadge}
+                </div>
                 <div class="item-actions">
                     ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
                     <button class="btn-icon danger interactive-btn" onclick="triggerDelete('goal', ${index})"><i data-lucide="trash"></i></button>
@@ -356,12 +420,25 @@ function updateHomeGoalSummary() {
     if (state.goals.length > 0) {
         const topGoal = state.goals[0];
         const timePercent = calculateGoalTimePercent(topGoal);
+        let daysRemaining = calculateDaysRemaining(topGoal.date);
+        
+        let proactiveMessage = `Plus que ${daysRemaining} jours pour ${topGoal.title}.`;
+        
+        if (topGoal.hasPrice && topGoal.targetMoney > topGoal.currentMoney && daysRemaining > 0) {
+            let argentRestant = topGoal.targetMoney - topGoal.currentMoney;
+            let semainesRestantes = Math.max(1, Math.ceil(daysRemaining / 7));
+            let montantHebdo = (argentRestant / semainesRestantes).toFixed(2);
+            proactiveMessage = `Plus que ${daysRemaining} jours pour ${topGoal.title}. Mets de côté ${montantHebdo}€/semaine ! 🦾`;
+        } else if (topGoal.hasPrice && topGoal.currentMoney >= topGoal.targetMoney) {
+             proactiveMessage = `Objectif financier atteint pour ${topGoal.title} ! 🎉`;
+        }
+
         summary.innerHTML = `
-            <p style="font-weight:600; color:#FFF;">${topGoal.title}</p>
-            <p class="subtitle" style="font-size:0.8rem;">Echéance: ${topGoal.date}</p>
-            <div class="progress-bar-linear" style="height: 6px; margin-top: 8px;">
+            <p style="font-weight:600; color:#FFF; font-size:1rem; line-height:1.4;">${proactiveMessage}</p>
+            ${topGoal.date ? `
+            <div class="progress-bar-linear" style="height: 6px; margin-top: 12px;">
                 <div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-purple);"></div>
-            </div>
+            </div>` : ''}
         `;
     } else {
         summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`;
