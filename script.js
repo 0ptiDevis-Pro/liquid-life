@@ -9,10 +9,9 @@ let state = {
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || []
 };
 
-// Variable globale pour la gestion dynamique des suppressions
 let pendingDelete = { type: null, index: null }; 
 
-// ================= ALGORITHME BANQUE DE CITATIONS (RESET MINUIT) ================= */
+// ================= CITATIONS DE MOTIVATION ================= */
 const quotes = [
     "Le succès n'est pas un accident, c'est le résultat d'une routine implacable.",
     "La discipline est le pont entre tes objectifs et tes accomplissements.",
@@ -52,7 +51,6 @@ function checkAppDay() {
     const today = getTodayString();
     if (localStorage.getItem('ll_currentDay') !== today) {
         localStorage.setItem('ll_currentDay', today);
-        // Sélectionne une citation aléatoire fixe pour toute la journée
         const randomQuoteIndex = Math.floor(Math.random() * quotes.length);
         localStorage.setItem('ll_quoteIndex', randomQuoteIndex);
     }
@@ -85,7 +83,6 @@ function switchTab(tabId) {
     renderAll();
 }
 
-// ================= RENDU VISUEL UNIFIE ================= */
 function renderAll() {
     const today = getTodayString();
     const isMissionDone = (state.lastMissionDate === today);
@@ -116,16 +113,22 @@ function renderAll() {
     lucide.createIcons();
 }
 
-// ================= ALGORITHME D'EXTRACTION INTELLIGENT DE PDF ED ================= */
+// ================= LECTURE PDF INTELLIGENTE ================= */
 const subjectColors = {
     "maths": "#2F7CFF", "mathématiques": "#2F7CFF", "français": "#8B5CF6", "francais": "#8B5CF6",
     "histoire": "#F59E0B", "svt": "#22C55E", "physique": "#06B6D4", "anglais": "#EC4899", "espagnol": "#10B981"
 };
-function getSubjectColor(subject) { return subjectColors[subject.toLowerCase().trim()] || "#A1A1AA"; }
+function getSubjectColor(subject) { 
+    const lower = subject.toLowerCase();
+    for (let key in subjectColors) { if (lower.includes(key)) return subjectColors[key]; }
+    return "#A1A1AA"; 
+}
 
 async function importAndParsePDF(input) {
     const file = input.files[0];
     if (!file || file.type !== "application/pdf") return;
+    if (!window.pdfjsLib) { alert("Le moteur PDF n'est pas chargé."); return; }
+
     document.getElementById('pdf-loading-text').style.display = 'block';
 
     try {
@@ -133,40 +136,45 @@ async function importAndParsePDF(input) {
         fileReader.onload = async function() {
             const typedarray = new Uint8Array(this.result);
             const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            
             let extractedTokens = [];
-
-            // Étape 1 : Parcourir les chaînes brutes du document
             for (let i = 1; i <= pdf.numPages; i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
                 textContent.items.forEach(item => {
-                    if (item.str.trim()) extractedTokens.push(item.str.trim());
+                    let cleanedStr = item.str.replace(/["\n]/g, '').replace(/\s+/g, ' ').trim();
+                    if (cleanedStr) extractedTokens.push(cleanedStr);
                 });
             }
             
-            // Étape 2 : Filtrer et structurer intelligemment selon ton PDF
             let newCourses = [];
             
             extractedTokens.forEach(token => {
-                // Ignore les congés fermetures globaux
-                if (token.toUpperCase().includes("CONGÉS") || token.toUpperCase().includes("CONGES")) return;
-                
-                // Repère la signature d'un cours (Exemple: "08:55 PARCOURS E" ou "10:40 FRANCAIS")
-                let timeMatch = token.match(/^(\d{2}[:h]\d{2})(?:\s+(.+))?$/i);
+                let upperToken = token.toUpperCase();
+                if (upperToken.includes("CONGÉS") || upperToken.includes("CONGES")) return;
+                if (/^\d{1,2}$/.test(token)) return; 
+
+                let timeMatch = token.match(/^(\d{2}[:h]\d{2})\s*(.*)$/i);
                 if (timeMatch) {
-                    let startHour = timeMatch[1].replace('h', ':');
+                    let startHourStr = timeMatch[1].replace('h', ':');
                     let rawSubject = timeMatch[2] ? timeMatch[2].trim() : "";
                     
                     if (rawSubject && rawSubject.length > 2) {
-                        // Calcule l'heure de fin par défaut (+1h de cours standard)
-                        let [h, m] = startHour.split(':').map(Number);
-                        let endH = String((h + 1) % 24).padStart(2, '0');
-                        let endHour = `${endH}:${String(m).padStart(2, '0')}`;
+                        let [sh, sm] = startHourStr.split(':').map(Number);
+                        let startMins = sh * 60 + sm;
+                        
+                        let duration = rawSubject.toUpperCase().includes("TP") ? 80 : 55;
+                        let endMins = startMins + duration;
+                        
+                        let endH = String(Math.floor(endMins / 60) % 24).padStart(2, '0');
+                        let endM = String(endMins % 60).padStart(2, '0');
+                        
+                        let formattedStart = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
                         
                         newCourses.push({
                             subject: rawSubject,
-                            start: startHour,
-                            end: endHour,
+                            start: formattedStart,
+                            end: `${endH}:${endM}`,
                             room: ""
                         });
                     }
@@ -174,10 +182,10 @@ async function importAndParsePDF(input) {
             });
 
             if (newCourses.length > 0) {
-                // Nettoie l'ancien planning pour le nouveau synchronisé
                 state.courses = newCourses;
+                state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
                 saveState();
-                alert(`🎯 Synchronisation réussie : ${newCourses.length} cours ont été configurés intelligemment !`);
+                alert(`🎯 Synchronisation réussie : ${newCourses.length} cours trouvés !`);
             } else {
                 alert("Format introuvable. Rentre les horaires manuellement via le bouton prévu.");
             }
@@ -186,7 +194,7 @@ async function importAndParsePDF(input) {
         };
         fileReader.readAsArrayBuffer(file);
     } catch (error) {
-        alert("Erreur critique de traitement.");
+        alert("Erreur de traitement PDF.");
         document.getElementById('pdf-loading-text').style.display = 'none';
     }
 }
@@ -199,7 +207,6 @@ function updateSchoolStatus() {
     }
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
 
     let currentCourse = null; let nextCourse = null;
     for (let course of state.courses) {
@@ -207,6 +214,7 @@ function updateSchoolStatus() {
         if (currentMinutes >= start && currentMinutes < end) currentCourse = course;
         else if (currentMinutes < start && !nextCourse) nextCourse = course;
     }
+    
     let homeHTML = "";
     if (currentCourse) {
         homeHTML = `<p><strong style="color:${getSubjectColor(currentCourse.subject)}">En cours : ${currentCourse.subject}</strong></p><p class="subtitle">Finit dans ${timeToMinutes(currentCourse.end) - currentMinutes} min</p>`;
@@ -221,7 +229,9 @@ function renderCoursesList() {
     list.innerHTML = "";
     if(state.courses.length === 0) return;
 
+    state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
     const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    
     state.courses.forEach((course, index) => {
         let statusClass = (currentMinutes >= timeToMinutes(course.start) && currentMinutes < timeToMinutes(course.end)) ? "current" : "";
         const card = document.createElement('div');
@@ -244,12 +254,13 @@ function saveCourse(e) {
         end: document.getElementById('course-end').value,
         room: document.getElementById('course-room').value
     });
+    state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
     saveState(); closeModal('course-modal'); document.getElementById('course-form').reset(); renderAll();
 }
 function deleteCourse(index) { state.courses.splice(index, 1); saveState(); renderAll(); }
 function timeToMinutes(timeString) { const [h, m] = timeString.split(':').map(Number); return h * 60 + m; }
 
-// ================= CONFIGURATION ROUTINES SPORTIVES ================= */
+// ================= ROUTINES SPORTIVES ================= */
 const baseExercises = ["Pompes", "Crunchs", "Dips", "Squats", "Gainage (sec)"];
 function generateDailyWorkout() {
     let tempExercises = [...baseExercises], routine = [];
@@ -281,7 +292,7 @@ function renderWorkout() {
 }
 function completeWorkoutExercise(index) { state.workoutGenerated[index].done = true; saveState(); renderAll(); }
 
-// ================= GESTION DES OBJECTIFS & CRÉATION PROGRESSION DATE ================= */
+// ================= GESTION DES OBJECTIFS ================= */
 function togglePriceField(checked) { document.getElementById('price-fields').style.display = checked ? 'flex' : 'none'; }
 function saveGoal(e) {
     e.preventDefault();
@@ -362,7 +373,7 @@ function addMoneyToGoal(index) {
     if(amt && !isNaN(amt)) { state.goals[index].currentMoney += parseFloat(amt); saveState(); renderAll(); }
 }
 
-// ================= CONFIGURATION COMPRESSION ET AJOUT QR CODES ================= */
+// ================= GESTION QR CODES ================= */
 function handleQRImageUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -416,7 +427,7 @@ function renderQRCodes() {
 }
 function openFullscreenQR(imageSrc) { document.getElementById('qr-fullscreen-img').src = imageSrc; openModal('qr-fullscreen-modal'); }
 
-// ================= INTERFACE UNIFIEE POUR MODALE DE SUPPRESSION PREMIUM ================= */
+// ================= SUPPRESSION UNIFIEE ================= */
 function triggerDelete(type, index) {
     pendingDelete = { type, index };
     const title = type === 'goal' ? "Supprimer l'objectif ?" : "Supprimer ce code ?";
@@ -435,6 +446,5 @@ document.getElementById('confirm-delete-btn').addEventListener('click', () => {
     pendingDelete = { type: null, index: null };
 });
 
-// ================= UTILITAIRES DES FENÊTRES MODALES ================= */
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
