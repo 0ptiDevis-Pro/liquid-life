@@ -6,16 +6,29 @@ let state = {
     courses: JSON.parse(localStorage.getItem('ll_courses')) || [],
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
-    qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
-    pdfData: localStorage.getItem('ll_pdfData') || null
+    qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || []
 };
 
-let goalToDeleteIndex = null; 
+let pendingDelete = { type: null, index: null }; // Pour la modale unifiée
+
+// ================= CITATIONS DE MOTIVATION ================= */
+const quotes = [
+    "Le succès n'est pas un accident, c'est le résultat d'une routine implacable.",
+    "La discipline est le pont entre tes objectifs et tes accomplissements.",
+    "N'arrête pas quand tu es fatigué, arrête quand tu as fini.",
+    "Ceux qui réussissent font ce que les autres n'ont pas envie de faire.",
+    "La douleur est temporaire, l'abandon est définitif.",
+    "Un pourcent meilleur chaque jour.",
+    "Ton futur se crée par ce que tu fais aujourd'hui, pas demain."
+];
 
 document.addEventListener('DOMContentLoaded', () => {
+    // PDF.js configuration
+    if (window['pdfjs-dist/build/pdf']) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
     lucide.createIcons();
     checkAppDay();
-    loadPDF();
     renderAll();
     setInterval(updateSchoolStatus, 60000);
 });
@@ -39,7 +52,12 @@ function checkAppDay() {
     const today = getTodayString();
     if (localStorage.getItem('ll_currentDay') !== today) {
         localStorage.setItem('ll_currentDay', today);
+        // Reset quote index
+        const randomQuoteIndex = Math.floor(Math.random() * quotes.length);
+        localStorage.setItem('ll_quoteIndex', randomQuoteIndex);
     }
+    const quoteIndex = localStorage.getItem('ll_quoteIndex') || 0;
+    document.getElementById('motivation-quote').innerText = `"${quotes[quoteIndex]}"`;
 }
 
 // ================= STREAK & MISSIONS ================= */
@@ -51,22 +69,17 @@ function completeDailyMission() {
         const lastDate = new Date(state.lastMissionDate);
         const nowDate = new Date(today);
         const diffDays = Math.ceil(Math.abs(nowDate - lastDate) / (1000 * 60 * 60 * 24)); 
-        
-        if (diffDays === 1) state.streak += 1;
-        else state.streak = 1;
+        if (diffDays === 1) state.streak += 1; else state.streak = 1;
     } else {
         state.streak = 1;
     }
-
     state.lastMissionDate = today;
-    saveState();
-    renderAll();
+    saveState(); renderAll();
 }
 
 function switchTab(tabId) {
     document.querySelectorAll('.app-page').forEach(page => page.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    
     document.getElementById(`tab-${tabId}`).classList.add('active');
     document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
     renderAll();
@@ -77,7 +90,10 @@ function renderAll() {
     const today = getTodayString();
     const isMissionDone = (state.lastMissionDate === today);
 
-    document.getElementById('streak-count').innerText = state.streak;
+    // Progression du Jour (Streak)
+    document.getElementById('streak-count-big').innerText = state.streak;
+    
+    // Mission
     const missionBtn = document.getElementById('btn-complete-mission');
     document.getElementById('home-mission-text').innerText = state.currentMission;
     
@@ -86,15 +102,11 @@ function renderAll() {
         missionBtn.style.background = "var(--glass-border)";
         missionBtn.style.color = "var(--success-green)";
         missionBtn.disabled = true;
-        document.getElementById('day-progress-fill').style.width = "100%";
-        document.getElementById('day-progress-text').innerText = "100% complété";
     } else {
         missionBtn.innerText = "Mission terminée";
         missionBtn.style.background = "var(--accent-blue)";
         missionBtn.style.color = "white";
         missionBtn.disabled = false;
-        document.getElementById('day-progress-fill').style.width = "0%";
-        document.getElementById('day-progress-text').innerText = "0% complété";
     }
 
     updateHomeGoalSummary();
@@ -106,7 +118,7 @@ function renderAll() {
     lucide.createIcons();
 }
 
-// ================= SCOLAIRE ================= */
+// ================= SCOLAIRE & LECTURE PDF ================= */
 const subjectColors = {
     "maths": "#2F7CFF", "mathématiques": "#2F7CFF",
     "français": "#8B5CF6", "histoire": "#F59E0B", "svt": "#22C55E",
@@ -114,24 +126,61 @@ const subjectColors = {
 };
 function getSubjectColor(subject) { return subjectColors[subject.toLowerCase().trim()] || "#A1A1AA"; }
 
-function importPDF(input) {
+async function importAndParsePDF(input) {
     const file = input.files[0];
-    if (file && file.type === "application/pdf") {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                localStorage.setItem('ll_pdfData', e.target.result);
-                state.pdfData = e.target.result;
-                loadPDF();
-            } catch (err) { alert("Le PDF est trop lourd. Choisis un fichier plus compressé."); }
+    if (!file || file.type !== "application/pdf") return;
+    if (!window.pdfjsLib) { alert("Le moteur PDF n'est pas chargé."); return; }
+
+    document.getElementById('pdf-loading-text').style.display = 'block';
+
+    try {
+        const fileReader = new FileReader();
+        fileReader.onload = async function() {
+            const typedarray = new Uint8Array(this.result);
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            let fullText = "";
+
+            // Extraction du texte de toutes les pages
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += pageText + " ";
+            }
+            
+            // Heuristique simple d'extraction de cours (Cherche "HH:MM - HH:MM Matière")
+            // C'est un algorithme basique adapté aux textes bruts de PDF.
+            const regex = /(\d{1,2}[:h]\d{2})\s*(?:-|à|a)\s*(\d{1,2}[:h]\d{2})\s*([A-Za-zÀ-ÿ]+)/g;
+            let match;
+            let newCourses = [];
+            
+            while ((match = regex.exec(fullText)) !== null) {
+                let start = match[1].replace('h', ':');
+                let end = match[2].replace('h', ':');
+                let subject = match[3];
+                // Formater HH:MM
+                if (start.length === 4) start = "0" + start;
+                if (end.length === 4) end = "0" + end;
+                
+                newCourses.push({ subject: subject, start: start, end: end, room: "" });
+            }
+
+            if (newCourses.length > 0) {
+                state.courses = [...state.courses, ...newCourses];
+                saveState();
+                alert(`${newCourses.length} cours ont été trouvés et ajoutés !`);
+            } else {
+                alert("Aucun cours précis n'a pu être extrait. Assure-toi que ton PDF contient des horaires clairs (ex: 08:00 - 10:00 Maths). Rentre les manuellement si besoin.");
+            }
+            document.getElementById('pdf-loading-text').style.display = 'none';
+            renderAll();
         };
-        reader.readAsDataURL(file);
+        fileReader.readAsArrayBuffer(file);
+    } catch (error) {
+        console.error(error);
+        alert("Erreur lors de la lecture du PDF.");
+        document.getElementById('pdf-loading-text').style.display = 'none';
     }
-}
-function loadPDF() {
-    const container = document.getElementById('pdf-container');
-    const viewer = document.getElementById('pdf-viewer');
-    if (state.pdfData) { viewer.src = state.pdfData; container.style.display = "block"; }
 }
 
 function updateSchoolStatus() {
@@ -140,7 +189,6 @@ function updateSchoolStatus() {
         document.getElementById('school-timer').innerText = "Rien de prévu";
         return;
     }
-
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
@@ -151,7 +199,6 @@ function updateSchoolStatus() {
         if (currentMinutes >= start && currentMinutes < end) currentCourse = course;
         else if (currentMinutes < start && !nextCourse) nextCourse = course;
     }
-
     let homeHTML = "";
     if (currentCourse) {
         homeHTML = `<p><strong style="color:${getSubjectColor(currentCourse.subject)}">En cours : ${currentCourse.subject}</strong></p><p class="subtitle">Finit dans ${timeToMinutes(currentCourse.end) - currentMinutes} min</p>`;
@@ -206,7 +253,6 @@ function generateDailyWorkout() {
     state.currentMission = `${routine[0].target} ${routine[0].name}`;
     saveState(); renderAll();
 }
-
 function renderWorkout() {
     const list = document.getElementById('workout-list');
     list.innerHTML = "";
@@ -256,10 +302,8 @@ function renderGoals() {
             priceHTML = `<p class="subtitle" style="margin-top: 8px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p>
                 <div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>`;
         }
-
         if (goal.date) {
-            const start = new Date(goal.creationDate || goal.date).getTime(), end = new Date(goal.date).getTime(), now = new Date().getTime();
-            let timePercent = (now >= end) ? 100 : (now > start ? Math.round(((now - start) / (end - start)) * 100) : 0);
+            const timePercent = calculateGoalTimePercent(goal);
             timeHTML = `<p class="subtitle" style="font-size:0.75rem; margin-top:8px;"><i data-lucide="clock" style="width:10px;height:10px;display:inline;"></i> Cible : ${goal.date}</p>
                 <div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: ${timePercent > 80 ? 'var(--warning-orange)' : 'var(--accent-blue)'};"></div></div>`;
         }
@@ -271,7 +315,7 @@ function renderGoals() {
                 <div style="flex: 1; padding-right: 10px;"><h4>${goal.title}</h4><p class="subtitle">${goal.desc || ''}</p></div>
                 <div class="item-actions">
                     ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
-                    <button class="btn-icon danger interactive-btn" onclick="triggerDeleteGoal(${index})"><i data-lucide="trash"></i></button>
+                    <button class="btn-icon danger interactive-btn" onclick="triggerDelete('goal', ${index})"><i data-lucide="trash"></i></button>
                 </div>
             </div>
             ${timeHTML}${priceHTML}
@@ -280,40 +324,51 @@ function renderGoals() {
     });
 }
 
+function calculateGoalTimePercent(goal) {
+    if (!goal.date) return 0;
+    const start = new Date(goal.creationDate || goal.date).getTime();
+    const end = new Date(goal.date).getTime();
+    const now = new Date().getTime();
+    if (start === end) return 0;
+    return (now >= end) ? 100 : (now > start ? Math.round(((now - start) / (end - start)) * 100) : 0);
+}
+
 function updateHomeGoalSummary() {
     const summary = document.getElementById('home-goal-summary');
-    if (state.goals.length > 0) summary.innerHTML = `<p style="font-weight:600; color:#FFF;">${state.goals[0].title}</p><p class="subtitle" style="font-size:0.8rem;">Cible: ${state.goals[0].date || 'Non définie'}</p>`;
-    else summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`;
+    if (state.goals.length > 0) {
+        const topGoal = state.goals[0];
+        const timePercent = calculateGoalTimePercent(topGoal);
+        summary.innerHTML = `
+            <p style="font-weight:600; color:#FFF;">${topGoal.title}</p>
+            <p class="subtitle" style="font-size:0.8rem;">Cible: ${topGoal.date || 'Non définie'}</p>
+            ${topGoal.date ? `
+            <div class="progress-bar-linear" style="height: 6px; margin-top: 8px;">
+                <div class="progress-fill" style="width: ${timePercent}%; background: ${timePercent > 80 ? 'var(--warning-orange)' : 'var(--accent-blue)'};"></div>
+            </div>` : ''}
+        `;
+    } else {
+        summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`;
+    }
 }
 
 function addMoneyToGoal(index) {
     let amt = prompt("Combien d'argent as-tu économisé ? (€)");
     if(amt && !isNaN(amt)) { state.goals[index].currentMoney += parseFloat(amt); saveState(); renderAll(); }
 }
-function triggerDeleteGoal(index) { goalToDeleteIndex = index; openModal('confirm-modal'); }
-document.getElementById('confirm-delete-btn').addEventListener('click', () => {
-    if (goalToDeleteIndex !== null) { state.goals.splice(goalToDeleteIndex, 1); saveState(); renderAll(); closeModal('confirm-modal'); goalToDeleteIndex = null; }
-});
 
-// ================= QR CODES (NOUVEAU) ================= */
+// ================= QR CODES ================= */
 function handleQRImageUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = function(e) {
         const img = new Image();
         img.onload = function() {
-            // Compression pour éviter de saturer le localStorage
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 500; 
-            const scaleSize = MAX_WIDTH / img.width;
-            canvas.width = MAX_WIDTH;
-            canvas.height = img.height * scaleSize;
-            
+            const MAX_WIDTH = 500; const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            
             const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             document.getElementById('qr-base64-data').value = dataUrl;
             document.getElementById('qr-preview-img').src = dataUrl;
@@ -327,17 +382,11 @@ function handleQRImageUpload(event) {
 
 function saveQRCode(e) {
     e.preventDefault();
-    const name = document.getElementById('qr-name').value;
     const image = document.getElementById('qr-base64-data').value;
-    
     if (image) {
-        state.qrcodes.push({ name, image });
-        saveState();
-        closeModal('qr-modal');
-        document.getElementById('qr-form').reset();
-        document.getElementById('qr-preview-img').style.display = 'none';
-        document.getElementById('qr-submit-btn').disabled = true;
-        renderAll();
+        state.qrcodes.push({ name: document.getElementById('qr-name').value, image });
+        saveState(); closeModal('qr-modal'); document.getElementById('qr-form').reset();
+        document.getElementById('qr-preview-img').style.display = 'none'; document.getElementById('qr-submit-btn').disabled = true; renderAll();
     }
 }
 
@@ -345,7 +394,6 @@ function renderQRCodes() {
     const list = document.getElementById('qrcodes-list');
     list.innerHTML = "";
     if(state.qrcodes.length === 0) return;
-
     state.qrcodes.forEach((qr, index) => {
         const card = document.createElement('div');
         card.className = "qr-card";
@@ -353,25 +401,32 @@ function renderQRCodes() {
         card.innerHTML = `
             <img src="${qr.image}" alt="${qr.name}">
             <h4>${qr.name}</h4>
-            <button class="btn-text" style="color:var(--error-red); padding:0; font-size:0.8rem;" onclick="event.stopPropagation(); deleteQRCode(${index})">Supprimer</button>
+            <button class="qr-del-btn" onclick="event.stopPropagation(); triggerDelete('qr', ${index})">Supprimer</button>
         `;
         list.appendChild(card);
     });
 }
+function openFullscreenQR(imageSrc) { document.getElementById('qr-fullscreen-img').src = imageSrc; openModal('qr-fullscreen-modal'); }
 
-function deleteQRCode(index) {
-    if (confirm("Supprimer ce code ?")) {
-        state.qrcodes.splice(index, 1);
-        saveState();
-        renderAll();
-    }
+// ================= SUPPRESSION UNIFIÉE ================= */
+function triggerDelete(type, index) {
+    pendingDelete = { type, index };
+    const title = type === 'goal' ? "Supprimer l'objectif ?" : "Supprimer ce code ?";
+    const desc = type === 'goal' ? "Cet objectif sera supprimé définitivement." : "Ce QR Code sera effacé de l'application.";
+    
+    document.getElementById('confirm-modal-title').innerText = title;
+    document.getElementById('confirm-modal-desc').innerText = desc;
+    openModal('confirm-modal');
 }
 
-function openFullscreenQR(imageSrc) {
-    document.getElementById('qr-fullscreen-img').src = imageSrc;
-    openModal('qr-fullscreen-modal');
-}
+document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+    if (pendingDelete.type === 'goal') state.goals.splice(pendingDelete.index, 1);
+    else if (pendingDelete.type === 'qr') state.qrcodes.splice(pendingDelete.index, 1);
+    
+    saveState(); renderAll(); closeModal('confirm-modal');
+    pendingDelete = { type: null, index: null };
+});
 
-// ================= MODALS ================= */
+// ================= UTILITAIRES MODALS ================= */
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
