@@ -6,6 +6,7 @@
     <title>LiquidLife - Premium</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
     <div class="liquid-bg"></div>
@@ -36,13 +37,12 @@
                 </div>
 
                 <div class="glass-card">
-                    <div class="card-icon blue-icon"><i data-lucide="trending-up"></i></div>
-                    <h3>Progression du jour</h3>
-                    <div class="progress-bar-linear">
-                        <div class="progress-fill" id="day-progress-fill" style="width: 0%"></div>
+                    <div class="card-icon" style="color: var(--warning-orange);"><i data-lucide="flame"></i></div>
+                    <h3>Feu Sacré</h3>
+                    <div style="display: flex; align-items: baseline; gap: 8px; margin-top: 8px;">
+                        <span id="streak-count-big" style="font-size: 2.5rem; font-weight: 800; color: #FFF;">0</span>
+                        <span class="subtitle">jours consécutifs</span>
                     </div>
-                    <p id="day-progress-text" class="subtitle" style="margin-top: 8px;">0% complété</p>
-                    <div class="streak-badge"><i data-lucide="flame"></i> Série : <span id="streak-count">0</span> jours</div>
                 </div>
 
                 <div class="glass-card interactive-card" onclick="switchTab('goals')">
@@ -56,7 +56,7 @@
                 <div class="glass-card">
                     <div class="card-icon"><i data-lucide="sparkles"></i></div>
                     <h3>Motivation</h3>
-                    <p id="motivation-quote" class="quote">"Le succès n'est pas un accident, c'est le résultat d'une routine implacable."</p>
+                    <p id="motivation-quote" class="quote">Chargement...</p>
                 </div>
             </div>
         </section>
@@ -68,14 +68,12 @@
             </header>
 
             <div class="action-bar" style="display: flex; gap: 10px;">
-                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Cours</button>
-                <button class="btn-secondary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1;"><i data-lucide="file-text"></i> Importer PDF</button>
-                <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="importPDF(this)">
+                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Manuel</button>
+                <button class="btn-primary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1; margin-top: 0;"><i data-lucide="file-text"></i> Auto (PDF)</button>
+                <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="importAndParsePDF(this)">
             </div>
-
-            <div id="pdf-container" class="glass-card" style="display: none; height: 300px; padding: 0; overflow: hidden; margin-bottom: 20px;">
-                <iframe id="pdf-viewer" width="100%" height="100%" style="border: none;"></iframe>
-            </div>
+            
+            <p id="pdf-loading-text" class="subtitle text-center" style="display: none; margin-bottom: 16px;">Analyse du PDF en cours... 🤖</p>
 
             <div id="courses-list" class="list-container"></div>
         </section>
@@ -195,8 +193,8 @@
             <div class="card-icon" style="background: rgba(239, 68, 68, 0.1); margin: 0 auto 15px auto;">
                 <i data-lucide="alert-triangle" style="color: #EF4444;"></i>
             </div>
-            <h2>Es-tu sûr ?</h2>
-            <p class="subtitle" style="margin-bottom: 20px;">Cet objectif sera supprimé définitivement.</p>
+            <h2 id="confirm-modal-title">Es-tu sûr ?</h2>
+            <p class="subtitle" id="confirm-modal-desc" style="margin-bottom: 20px;">Cet élément sera supprimé définitivement.</p>
             <div class="modal-buttons equal-buttons">
                 <button class="btn-secondary" onclick="closeModal('confirm-modal')">Annuler</button>
                 <button class="btn-primary btn-danger" id="confirm-delete-btn">Supprimer</button>
