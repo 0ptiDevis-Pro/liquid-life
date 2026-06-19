@@ -72,11 +72,6 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .blue-icon { color: var(--accent-blue); }
 .purple-icon { color: var(--accent-purple); }
 
-.course-card.current {
-    background: linear-gradient(135deg, rgba(47,124,255,0.15), rgba(47,124,255,0.05));
-    border-color: rgba(47,124,255,0.4);
-}
-
 /* ================= BOUTONS ================= */
 .action-bar { margin-bottom: 24px; }
 .btn-primary, .btn-secondary {
@@ -148,7 +143,7 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .nav-item.active .icon-wrapper { transform: translateY(-2px); background: rgba(255, 255, 255, 0.12); }
 .nav-item.active i { color: #FFF; }
 
-/* ================= MODALS ================= */
+/* ================= MODALS & FORMS ================= */
 .modal-overlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
@@ -166,6 +161,15 @@ form input[type="text"], form input[type="time"], form input[type="date"], form 
 }
 form input:focus { border-color: var(--accent-blue); background: rgba(255,255,255,0.08); }
 .form-row { display: flex; gap: 12px; }
+
+/* Lignes de la Semaine Type */
+.day-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.day-row label { flex: 1; font-weight: 600; font-size: 0.95rem; }
+.day-row input[type="time"] { width: 110px; margin-bottom: 0; padding: 10px; text-align: center; }
+.day-row span { color: #A1A1AA; font-size: 0.85rem; }
 
 .checkbox-container { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 0.95rem; color: #FFF; }
 .checkbox-container input[type="checkbox"] { margin: 0; width: 20px; height: 20px; accent-color: var(--accent-blue); cursor: pointer; }
