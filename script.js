@@ -25,6 +25,7 @@ const quotes = [
     "Ton futur se construit sur ce que tu imposes à ta journée."
 ];
 
+// ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initUserName();
@@ -33,10 +34,24 @@ document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     renderAll();
     
+    // Interval principal (toutes les minutes)
     setInterval(() => {
         renderAll();
         checkNotifications();
     }, 60000);
+
+    // Écouteur pour forcer le check au retour sur l'app (Rattrapage notifications)
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === 'visible') {
+            renderAll();
+            checkNotifications();
+        }
+    });
+
+    window.addEventListener("focus", () => {
+        renderAll();
+        checkNotifications();
+    });
 });
 
 function saveState() {
@@ -55,6 +70,11 @@ function saveState() {
 function getTodayString() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function timeToMinutes(timeString) { 
+    if(!timeString) return 0;
+    const [h, m] = timeString.split(':').map(Number); return h * 60 + m; 
 }
 
 // ================= GESTION DU PRENOM & POP-UPS CUSTOMS ================= */
@@ -226,6 +246,7 @@ function toggleNotification(type) {
     }
     state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked; saveState();
 }
+
 function triggerNotification(id, title, body) {
     const today = getTodayString();
     if (state.lastNotified[id] === today) return; 
@@ -237,43 +258,59 @@ function triggerNotification(id, title, body) {
         });
     }
 }
+
+// LOGIQUE CORRIGÉE POUR LE BACKGROUND THROTTLING (Plages horaires >= au lieu de strict)
 function checkNotifications() {
     if (Notification.permission !== 'granted') return;
-    const now = new Date(); const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
     const today = getTodayString();
 
-    if (state.notifications.sport && timeStr === "09:00" && state.lastNotified.sport !== today) {
+    // 1. Quêtes Sport (09:00 -> 540 mins)
+    if (state.notifications.sport && currentMins >= 540 && state.lastNotified.sport !== today) {
         let bodyText = "Mission Sport : " + (state.workoutGenerated && state.workoutGenerated.length > 0 ? state.workoutGenerated.map(ex => `${ex.target} ${ex.name}`).join(', ') : "Génère ta routine ! ⚡");
         triggerNotification('sport', '💪 Entraînement !', bodyText);
     }
+    
+    // 2. Début des cours H-30min (Différence en minutes)
     if (state.notifications.school && state.lastNotified.school !== today) {
         let weekSched = state.weekSchedule[now.getDay()];
         if (weekSched && weekSched.start) {
-            let startMins = timeToMinutes(weekSched.start), nowMins = now.getHours() * 60 + now.getMinutes();
-            if (startMins - nowMins === 30) triggerNotification('school', '📚 Prépare-toi !', `Début des cours dans 30 min (à ${weekSched.start})`);
+            let startMins = timeToMinutes(weekSched.start);
+            let diff = startMins - currentMins;
+            // Déclenchement si on est à 30min ou moins avant le cours, et pas encore commencé
+            if (diff <= 30 && diff > 0) {
+                triggerNotification('school', '📚 Prépare-toi !', `Début des cours dans ${diff} min (à ${weekSched.start})`);
+            }
         }
     }
-    if (state.notifications.goals && timeStr === "19:00" && state.lastNotified.goals !== today && state.goals.length > 0) {
+
+    // 3. Motivation (13:00 -> 780 mins)
+    if (state.notifications.motivation && currentMins >= 780 && state.lastNotified.motivation !== today) {
+        triggerNotification('motivation', '✨ Motivation', quotes[localStorage.getItem('ll_quoteIndex') || 0]);
+    }
+    
+    // 4. Objectifs (19:00 -> 1140 mins)
+    if (state.notifications.goals && currentMins >= 1140 && state.lastNotified.goals !== today && state.goals.length > 0) {
         let topGoal = state.goals.find(g => g.isFavorite) || state.goals[0];
         let daysRemaining = calculateDaysRemaining(topGoal.date);
         let notifBody = (topGoal.hasPrice && topGoal.targetMoney > topGoal.currentMoney && daysRemaining > 0) ? `⏳ Plus que ${daysRemaining} j. Mets de côté ${((topGoal.targetMoney - topGoal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / semaine !` : `Plus que ${daysRemaining} jours restants.`;
         triggerNotification('goals', `🎯 ${topGoal.title}`, notifBody);
     }
-    if (state.notifications.streak && timeStr === "20:00" && state.lastNotified.streak !== today) {
-        if (state.lastMissionDate !== today) triggerNotification('streak', '⚠️ Feu Sacré', "Valide ta quête avant minuit pour sauver ta série !");
-    }
-    if (state.notifications.motivation && timeStr === "13:00" && state.lastNotified.motivation !== today) {
-        triggerNotification('motivation', '✨ Motivation', quotes[localStorage.getItem('ll_quoteIndex') || 0]);
+    
+    // 5. Fin du Feu Sacré (20:00 -> 1200 mins)
+    if (state.notifications.streak && currentMins >= 1200 && state.lastNotified.streak !== today) {
+        if (state.lastMissionDate !== today) {
+            triggerNotification('streak', '⚠️ Feu Sacré', "Valide ta quête avant minuit pour sauver ta série !");
+        }
     }
 }
 
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
 const dayMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; 
 const dayNamesFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-function timeToMinutes(timeString) { 
-    if(!timeString) return 0;
-    const [h, m] = timeString.split(':').map(Number); return h * 60 + m; 
-}
+
 document.querySelector('[onclick="openModal(\'week-modal\')"]').addEventListener('click', () => {
     dayMap.forEach((day, index) => {
         if(index === 0) return; 
@@ -352,7 +389,7 @@ function saveGoal(e) {
         hasPrice: document.getElementById('goal-has-price').checked,
         currentMoney: parseFloat(document.getElementById('goal-current-money').value) || 0,
         targetMoney: parseFloat(document.getElementById('goal-target-money').value) || 0,
-        isFavorite: state.goals.length === 0 // Premier objectif créé devient favori par défaut
+        isFavorite: state.goals.length === 0 
     });
     saveState(); closeModal('goal-modal'); document.getElementById('goal-form').reset(); togglePriceField(false); renderAll();
 }
@@ -369,7 +406,7 @@ function calculateDaysRemaining(targetDate) {
 }
 function toggleFavoriteGoal(index) {
     const wasFav = state.goals[index].isFavorite;
-    state.goals.forEach(g => g.isFavorite = false); // Retire le favori de tous les autres
+    state.goals.forEach(g => g.isFavorite = false); 
     if (!wasFav) state.goals[index].isFavorite = true;
     saveState(); renderAll();
 }
