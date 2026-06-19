@@ -6,6 +6,7 @@
     <title>LiquidLife - Premium</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
     <div class="liquid-bg"></div>
@@ -59,6 +60,54 @@
                 </div>
 
                 <div class="glass-card">
+                    <div class="card-icon" style="color: var(--success-green);"><i data-lucide="bell"></i></div>
+                    <h3>Centre de Notifications</h3>
+                    <p class="subtitle" style="margin-bottom: 16px;">Ne rate aucune échéance.</p>
+                    
+                    <button id="btn-request-notif" class="btn-primary" style="margin-top:0; margin-bottom: 20px; width: 100%;" onclick="requestNotificationPermission()">
+                        Activer les notifications
+                    </button>
+                    
+                    <div class="notification-list">
+                        <div class="notif-row">
+                            <span>Quêtes de sport (09h00)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-notif-sport" onchange="toggleNotification('sport')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="notif-row">
+                            <span>Début des cours (H -30min)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-notif-school" onchange="toggleNotification('school')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="notif-row">
+                            <span>Objectifs (19h00)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-notif-goals" onchange="toggleNotification('goals')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="notif-row">
+                            <span>Fin du Feu Sacré (20h00)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-notif-streak" onchange="toggleNotification('streak')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="notif-row">
+                            <span>Motivation (13h00)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="toggle-notif-motivation" onchange="toggleNotification('motivation')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card">
                     <div class="card-icon" style="color: #A1A1AA;"><i data-lucide="settings"></i></div>
                     <h3>⚙️ Paramètres & Sauvegarde</h3>
                     <p class="subtitle" style="margin-bottom: 16px;">Gère tes données.</p>
@@ -81,8 +130,7 @@
             </header>
 
             <div class="glass-card" style="margin-bottom: 24px;">
-                <div id="full-schedule-display">
-                    </div>
+                <div id="full-schedule-display"></div>
             </div>
 
             <div class="action-bar">
@@ -192,35 +240,13 @@
             <h2>Semaine Type</h2>
             <p class="subtitle" style="margin-bottom: 20px;">Laisse vide si tu n'as pas cours/travail ce jour-là.</p>
             <form id="week-form" onsubmit="saveWeekSchedule(event)">
-                <div class="day-row">
-                    <label>Lundi</label>
-                    <input type="time" id="time-mon-start"><span>à</span><input type="time" id="time-mon-end">
-                </div>
-                <div class="day-row">
-                    <label>Mardi</label>
-                    <input type="time" id="time-tue-start"><span>à</span><input type="time" id="time-tue-end">
-                </div>
-                <div class="day-row">
-                    <label>Mercredi</label>
-                    <input type="time" id="time-wed-start"><span>à</span><input type="time" id="time-wed-end">
-                </div>
-                <div class="day-row">
-                    <label>Jeudi</label>
-                    <input type="time" id="time-thu-start"><span>à</span><input type="time" id="time-thu-end">
-                </div>
-                <div class="day-row">
-                    <label>Vendredi</label>
-                    <input type="time" id="time-fri-start"><span>à</span><input type="time" id="time-fri-end">
-                </div>
-                <div class="day-row">
-                    <label>Samedi</label>
-                    <input type="time" id="time-sat-start"><span>à</span><input type="time" id="time-sat-end">
-                </div>
-                <div class="day-row">
-                    <label>Dimanche</label>
-                    <input type="time" id="time-sun-start"><span>à</span><input type="time" id="time-sun-end">
-                </div>
-
+                <div class="day-row"><label>Lundi</label><input type="time" id="time-mon-start"><span>à</span><input type="time" id="time-mon-end"></div>
+                <div class="day-row"><label>Mardi</label><input type="time" id="time-tue-start"><span>à</span><input type="time" id="time-tue-end"></div>
+                <div class="day-row"><label>Mercredi</label><input type="time" id="time-wed-start"><span>à</span><input type="time" id="time-wed-end"></div>
+                <div class="day-row"><label>Jeudi</label><input type="time" id="time-thu-start"><span>à</span><input type="time" id="time-thu-end"></div>
+                <div class="day-row"><label>Vendredi</label><input type="time" id="time-fri-start"><span>à</span><input type="time" id="time-fri-end"></div>
+                <div class="day-row"><label>Samedi</label><input type="time" id="time-sat-start"><span>à</span><input type="time" id="time-sat-end"></div>
+                <div class="day-row"><label>Dimanche</label><input type="time" id="time-sun-start"><span>à</span><input type="time" id="time-sun-end"></div>
                 <div class="modal-buttons equal-buttons">
                     <button type="button" class="btn-secondary" onclick="closeModal('week-modal')">Annuler</button>
                     <button type="submit" class="btn-primary">Sauvegarder</button>
@@ -237,17 +263,14 @@
                 <input type="text" id="goal-desc" placeholder="Description">
                 <p class="subtitle" style="font-size:0.8rem; margin-bottom: 4px;">Date cible :</p>
                 <input type="date" id="goal-date" required>
-                
                 <div class="checkbox-container">
                     <input type="checkbox" id="goal-has-price" onchange="togglePriceField(this.checked)">
                     <label for="goal-has-price">Cet objectif a un prix</label>
                 </div>
-                
                 <div id="price-fields" class="form-row" style="display: none;">
                     <input type="number" id="goal-current-money" placeholder="Actuel (€)" min="0">
                     <input type="number" id="goal-target-money" placeholder="Cible (€)" min="0">
                 </div>
-                
                 <div class="modal-buttons equal-buttons">
                     <button type="button" class="btn-secondary" onclick="closeModal('goal-modal')">Annuler</button>
                     <button type="submit" class="btn-primary">Créer</button>
@@ -289,16 +312,13 @@
             <h2>Ajouter un QR Code</h2>
             <form id="qr-form" onsubmit="saveQRCode(event)">
                 <input type="text" id="qr-name" placeholder="Nom (ex: Insta, Revolut)" required>
-                
                 <div class="file-upload-box" onclick="document.getElementById('qr-image-upload').click()">
                     <i data-lucide="image" style="width: 24px; height: 24px; margin-bottom: 8px;"></i>
                     <p class="subtitle">Clique pour choisir une image</p>
                 </div>
                 <input type="file" id="qr-image-upload" accept="image/*" style="display: none;" onchange="handleQRImageUpload(event)">
-                
                 <img id="qr-preview-img" src="" alt="Aperçu" style="display: none; width: 100%; border-radius: 12px; margin-top: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <input type="hidden" id="qr-base64-data">
-
                 <div class="modal-buttons equal-buttons">
                     <button type="button" class="btn-secondary" onclick="closeModal('qr-modal')">Annuler</button>
                     <button type="submit" class="btn-primary" id="qr-submit-btn" disabled>Enregistrer</button>
