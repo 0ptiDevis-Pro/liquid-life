@@ -1,17 +1,19 @@
 // ================= ETAT DES DONNEES LOCALES ================= */
 let state = {
+    userName: localStorage.getItem('ll_userName') || "",
     streak: parseInt(localStorage.getItem('ll_streak')) || 0,
     lastMissionDate: localStorage.getItem('ll_lastMissionDate') || "", 
     currentMission: localStorage.getItem('ll_currentMission') || "15 pompes",
-    courses: JSON.parse(localStorage.getItem('ll_courses')) || [],
+    weekSchedule: JSON.parse(localStorage.getItem('ll_weekSchedule')) || {}, // ex: { 1: {start: "08:00", end: "17:00"} }
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || []
 };
 
+// Variable globale pour la gestion dynamique des modales
 let pendingDelete = { type: null, index: null }; 
+let currentPromptCallback = null;
 
-// ================= CITATIONS DE MOTIVATION ================= */
 const quotes = [
     "Le succès n'est pas un accident, c'est le résultat d'une routine implacable.",
     "La discipline est le pont entre tes objectifs et tes accomplissements.",
@@ -23,20 +25,19 @@ const quotes = [
 ];
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (window['pdfjs-dist/build/pdf']) {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    }
     lucide.createIcons();
+    initUserName();
     checkAppDay();
     renderAll();
-    setInterval(updateSchoolStatus, 60000);
+    setInterval(renderAll, 60000); // Rafraîchit l'affichage temps/agenda toutes les minutes
 });
 
 function saveState() {
+    localStorage.setItem('ll_userName', state.userName);
     localStorage.setItem('ll_streak', state.streak);
     localStorage.setItem('ll_lastMissionDate', state.lastMissionDate);
     localStorage.setItem('ll_currentMission', state.currentMission);
-    localStorage.setItem('ll_courses', JSON.stringify(state.courses));
+    localStorage.setItem('ll_weekSchedule', JSON.stringify(state.weekSchedule));
     localStorage.setItem('ll_workout', JSON.stringify(state.workoutGenerated));
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
     localStorage.setItem('ll_qrcodes', JSON.stringify(state.qrcodes));
@@ -47,6 +48,75 @@ function getTodayString() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// ================= GESTION DU PRENOM & POP-UPS CUSTOMS ================= */
+function initUserName() {
+    if (!state.userName) {
+        openModal('name-modal');
+    } else {
+        document.getElementById('welcome-text').innerText = `Hello ${state.userName} ! 👋`;
+    }
+}
+
+function saveUserName() {
+    const name = document.getElementById('user-name-input').value.trim();
+    if (name) {
+        state.userName = name;
+        saveState();
+        document.getElementById('welcome-text').innerText = `Hello ${state.userName} ! 👋`;
+        closeModal('name-modal');
+    }
+}
+
+function showCustomAlert(title, desc, isSuccess = false) {
+    document.getElementById('alert-title').innerText = title;
+    document.getElementById('alert-desc').innerText = desc;
+    const iconObj = document.getElementById('alert-icon');
+    if(isSuccess) {
+        iconObj.innerHTML = '<i data-lucide="check-circle" style="color: #22C55E;"></i>';
+        iconObj.style.background = 'rgba(34, 197, 94, 0.1)';
+    } else {
+        iconObj.innerHTML = '<i data-lucide="info" style="color: var(--accent-blue);"></i>';
+        iconObj.style.background = 'rgba(47, 124, 255, 0.1)';
+    }
+    lucide.createIcons();
+    openModal('alert-modal');
+}
+
+function showCustomPrompt(title, desc, callback) {
+    document.getElementById('prompt-title').innerText = title;
+    document.getElementById('prompt-desc').innerText = desc;
+    document.getElementById('prompt-input').value = "";
+    currentPromptCallback = callback;
+    openModal('prompt-modal');
+}
+
+function submitCustomPrompt() {
+    const val = document.getElementById('prompt-input').value;
+    closeModal('prompt-modal');
+    if (currentPromptCallback && val !== "") currentPromptCallback(val);
+}
+
+// ================= RESET GLOBAL ================= */
+function executeFullReset() {
+    // Garde le prénom pour l'UX
+    const currentName = state.userName;
+    state = {
+        userName: currentName,
+        streak: 0,
+        lastMissionDate: "", 
+        currentMission: "15 pompes",
+        weekSchedule: {},
+        workoutGenerated: null,
+        goals: [],
+        qrcodes: []
+    };
+    saveState();
+    renderAll();
+    closeModal('reset-confirm-modal');
+    showCustomAlert("Réinitialisation réussie", "L'application a été entièrement remise à zéro.", true);
+}
+
+// ================= ROUTINE QUOTIDIENNE ================= */
 function checkAppDay() {
     const today = getTodayString();
     if (localStorage.getItem('ll_currentDay') !== today) {
@@ -58,7 +128,6 @@ function checkAppDay() {
     document.getElementById('motivation-quote').innerText = `"${quotes[quoteIndex]}"`;
 }
 
-// ================= STREAK CONSECUTIFS ================= */
 function completeDailyMission() {
     const today = getTodayString();
     if (state.lastMissionDate === today) return;
@@ -105,8 +174,7 @@ function renderAll() {
     }
 
     updateHomeGoalSummary();
-    updateSchoolStatus();
-    renderCoursesList();
+    updateSchoolDisplay();
     renderWorkout();
     renderGoals();
     renderQRCodes();
@@ -135,162 +203,127 @@ function importData(event) {
                 state = importedState;
                 saveState();
                 renderAll();
-                alert("Sauvegarde restaurée avec succès ! ✨");
+                showCustomAlert("Succès", "Sauvegarde restaurée avec succès ! ✨", true);
             }
         } catch(err) {
-            alert("Erreur lors de la lecture du fichier JSON. Assure-toi que c'est le bon fichier de sauvegarde.");
+            showCustomAlert("Erreur", "Fichier invalide. Assure-toi d'utiliser le bon fichier de sauvegarde.");
         }
     }
     reader.readAsText(file);
-    event.target.value = ''; // Réinitialiser l'input
+    event.target.value = '';
 }
 
-// ================= LECTURE PDF INTELLIGENTE ================= */
-const subjectColors = {
-    "maths": "#2F7CFF", "mathématiques": "#2F7CFF", "français": "#8B5CF6", "francais": "#8B5CF6",
-    "histoire": "#F59E0B", "svt": "#22C55E", "physique": "#06B6D4", "anglais": "#EC4899", "espagnol": "#10B981"
-};
-function getSubjectColor(subject) { 
-    const lower = subject.toLowerCase();
-    for (let key in subjectColors) { if (lower.includes(key)) return subjectColors[key]; }
-    return "#A1A1AA"; 
+// ================= EMPLOI DU TEMPS INTELLIGENT (SEMAINE TYPE) ================= */
+const dayMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; // Date.getDay() format
+const dayNamesFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+function timeToMinutes(timeString) { 
+    if(!timeString) return 0;
+    const [h, m] = timeString.split(':').map(Number); 
+    return h * 60 + m; 
 }
 
-async function importAndParsePDF(input) {
-    const file = input.files[0];
-    if (!file || file.type !== "application/pdf") return;
-    if (!window.pdfjsLib) { alert("Le moteur PDF n'est pas chargé."); return; }
-
-    document.getElementById('pdf-loading-text').style.display = 'block';
-
-    try {
-        const fileReader = new FileReader();
-        fileReader.onload = async function() {
-            const typedarray = new Uint8Array(this.result);
-            const pdf = await pdfjsLib.getDocument(typedarray).promise;
-            
-            let extractedTokens = [];
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                textContent.items.forEach(item => {
-                    let cleanedStr = item.str.replace(/["\n]/g, '').replace(/\s+/g, ' ').trim();
-                    if (cleanedStr) extractedTokens.push(cleanedStr);
-                });
-            }
-            
-            let newCourses = [];
-            
-            extractedTokens.forEach(token => {
-                let upperToken = token.toUpperCase();
-                if (upperToken.includes("CONGÉS") || upperToken.includes("CONGES")) return;
-                if (/^\d{1,2}$/.test(token)) return; 
-
-                let timeMatch = token.match(/^(\d{2}[:h]\d{2})\s*(.*)$/i);
-                if (timeMatch) {
-                    let startHourStr = timeMatch[1].replace('h', ':');
-                    let rawSubject = timeMatch[2] ? timeMatch[2].trim() : "";
-                    
-                    if (rawSubject && rawSubject.length > 2) {
-                        let [sh, sm] = startHourStr.split(':').map(Number);
-                        let startMins = sh * 60 + sm;
-                        
-                        let duration = rawSubject.toUpperCase().includes("TP") ? 80 : 55;
-                        let endMins = startMins + duration;
-                        
-                        let endH = String(Math.floor(endMins / 60) % 24).padStart(2, '0');
-                        let endM = String(endMins % 60).padStart(2, '0');
-                        
-                        let formattedStart = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
-                        
-                        newCourses.push({
-                            subject: rawSubject,
-                            start: formattedStart,
-                            end: `${endH}:${endM}`,
-                            room: ""
-                        });
-                    }
-                }
-            });
-
-            if (newCourses.length > 0) {
-                state.courses = newCourses;
-                state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-                saveState();
-                alert(`🎯 Synchronisation réussie : ${newCourses.length} cours trouvés !`);
-            } else {
-                alert("Format introuvable. Rentre les horaires manuellement via le bouton prévu.");
-            }
-            document.getElementById('pdf-loading-text').style.display = 'none';
-            renderAll();
-        };
-        fileReader.readAsArrayBuffer(file);
-    } catch (error) {
-        alert("Erreur de traitement PDF.");
-        document.getElementById('pdf-loading-text').style.display = 'none';
-    }
-}
-
-function updateSchoolStatus() {
-    if (state.courses.length === 0) {
-        document.getElementById('home-schedule-status').innerHTML = "<p class='subtitle'>Agenda vide</p>";
-        document.getElementById('school-timer').innerText = "Rien de prévu";
-        return;
-    }
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    let currentCourse = null; let nextCourse = null;
-    for (let course of state.courses) {
-        let start = timeToMinutes(course.start), end = timeToMinutes(course.end);
-        if (currentMinutes >= start && currentMinutes < end) currentCourse = course;
-        else if (currentMinutes < start && !nextCourse) nextCourse = course;
-    }
-    
-    let homeHTML = "";
-    if (currentCourse) {
-        homeHTML = `<p><strong style="color:${getSubjectColor(currentCourse.subject)}">En cours : ${currentCourse.subject}</strong></p><p class="subtitle">Finit dans ${timeToMinutes(currentCourse.end) - currentMinutes} min</p>`;
-    } else if (nextCourse) {
-        homeHTML = `<p>Prochain : ${nextCourse.subject}</p><p class="subtitle">À ${nextCourse.start}</p>`;
-    } else { homeHTML = `<p>🎉 Journée terminée !</p>`; }
-    document.getElementById('home-schedule-status').innerHTML = homeHTML;
-}
-
-function renderCoursesList() {
-    const list = document.getElementById('courses-list');
-    list.innerHTML = "";
-    if(state.courses.length === 0) return;
-
-    state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-    const currentMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-    
-    state.courses.forEach((course, index) => {
-        let statusClass = (currentMinutes >= timeToMinutes(course.start) && currentMinutes < timeToMinutes(course.end)) ? "current" : "";
-        const card = document.createElement('div');
-        card.className = `glass-card item-card course-card ${statusClass}`;
-        card.innerHTML = `
-            <div class="item-info" style="display:flex; align-items:center; gap: 10px;">
-                <div style="width:12px; height:12px; border-radius:50%; background:${getSubjectColor(course.subject)};"></div>
-                <div><h4>${course.subject}</h4><p class="subtitle">${course.start} - ${course.end}</p></div>
-            </div>
-            <div class="item-actions"><button class="btn-icon danger interactive-btn" onclick="deleteCourse(${index})"><i data-lucide="trash"></i></button></div>
-        `;
-        list.appendChild(card);
+// Ouvre la modale et pré-rempli avec les horaires sauvegardés
+document.querySelector('[onclick="openModal(\'week-modal\')"]').addEventListener('click', () => {
+    dayMap.forEach((day, index) => {
+        if(index === 0) return; // Ignore dimanche pour la boucle, on le gère manuellement à la fin
+        if(state.weekSchedule[index]) {
+            document.getElementById(`time-${day}-start`).value = state.weekSchedule[index].start;
+            document.getElementById(`time-${day}-end`).value = state.weekSchedule[index].end;
+        }
     });
-}
-function saveCourse(e) {
+    if(state.weekSchedule[0]) {
+        document.getElementById(`time-sun-start`).value = state.weekSchedule[0].start;
+        document.getElementById(`time-sun-end`).value = state.weekSchedule[0].end;
+    }
+});
+
+function saveWeekSchedule(e) {
     e.preventDefault();
-    state.courses.push({
-        subject: document.getElementById('course-subject').value,
-        start: document.getElementById('course-start').value,
-        end: document.getElementById('course-end').value,
-        room: document.getElementById('course-room').value
+    state.weekSchedule = {};
+    dayMap.forEach((day, index) => {
+        const s = document.getElementById(`time-${day}-start`).value;
+        const en = document.getElementById(`time-${day}-end`).value;
+        if(s && en) {
+            state.weekSchedule[index] = { start: s, end: en };
+        }
     });
-    state.courses.sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-    saveState(); closeModal('course-modal'); document.getElementById('course-form').reset(); renderAll();
+    saveState();
+    closeModal('week-modal');
+    renderAll();
 }
-function deleteCourse(index) { state.courses.splice(index, 1); saveState(); renderAll(); }
-function timeToMinutes(timeString) { const [h, m] = timeString.split(':').map(Number); return h * 60 + m; }
+
+function updateSchoolDisplay() {
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    let displayDay = null;
+    let isToday = false;
+    let statusText = "";
+    let timeText = "";
+    let progressHTML = "";
+
+    // 1. Check if we are currently IN today's schedule or BEFORE it
+    if (state.weekSchedule[currentDay]) {
+        let sMins = timeToMinutes(state.weekSchedule[currentDay].start);
+        let eMins = timeToMinutes(state.weekSchedule[currentDay].end);
+
+        if (currentMins < sMins) {
+            displayDay = currentDay;
+            isToday = true;
+            statusText = "Aujourd'hui";
+            timeText = `Débute à ${state.weekSchedule[currentDay].start}`;
+        } else if (currentMins >= sMins && currentMins < eMins) {
+            displayDay = currentDay;
+            isToday = true;
+            statusText = "En cours";
+            timeText = `Finit à ${state.weekSchedule[currentDay].end}`;
+            
+            // Progress bar calc
+            let percent = Math.round(((currentMins - sMins) / (eMins - sMins)) * 100);
+            progressHTML = `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${percent}%;"></div></div>`;
+        }
+    }
+
+    // 2. If today is over or no school today, find the NEXT day
+    if (displayDay === null) {
+        for (let i = 1; i <= 7; i++) {
+            let nextDayCheck = (currentDay + i) % 7;
+            if (state.weekSchedule[nextDayCheck]) {
+                displayDay = nextDayCheck;
+                statusText = i === 1 ? "Demain" : `Prochain : ${dayNamesFr[nextDayCheck]}`;
+                timeText = `De ${state.weekSchedule[nextDayCheck].start} à ${state.weekSchedule[nextDayCheck].end}`;
+                break;
+            }
+        }
+    }
+
+    const homeCard = document.getElementById('home-schedule-status');
+    const schoolPage = document.getElementById('full-schedule-display');
+
+    if (displayDay !== null) {
+        // MAJ Home
+        homeCard.innerHTML = `<p style="font-weight:600; color:${isToday && statusText === 'En cours' ? 'var(--accent-blue)' : '#FFF'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
+        
+        // MAJ Page Scolaire
+        schoolPage.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3>
+                    <p class="subtitle" style="font-size:1rem;">${timeText}</p>
+                </div>
+                <div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px;">
+                    <i data-lucide="clock" style="width:24px; height:24px;"></i>
+                </div>
+            </div>
+            ${progressHTML}
+        `;
+    } else {
+        homeCard.innerHTML = `<p class="subtitle">Aucun horaire.</p>`;
+        schoolPage.innerHTML = `<p class="subtitle text-center">Aucun horaire de configuré pour la semaine.</p>`;
+    }
+}
 
 // ================= ROUTINES SPORTIVES ================= */
 const baseExercises = ["Pompes", "Crunchs", "Dips", "Squats", "Gainage (sec)"];
@@ -405,13 +438,24 @@ function renderGoals() {
                     ${daysBadge}
                 </div>
                 <div class="item-actions">
-                    ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="addMoneyToGoal(${index})"><i data-lucide="plus"></i></button>` : ''}
+                    ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="openGoalPrompt(${index})"><i data-lucide="plus"></i></button>` : ''}
                     <button class="btn-icon danger interactive-btn" onclick="triggerDelete('goal', ${index})"><i data-lucide="trash"></i></button>
                 </div>
             </div>
             ${timeHTML}${priceHTML}
         `;
         list.appendChild(card);
+    });
+}
+
+function openGoalPrompt(index) {
+    showCustomPrompt("Montant épargné", "Combien d'argent as-tu mis de côté ? (€)", (val) => {
+        let amt = parseFloat(val);
+        if(!isNaN(amt) && amt > 0) {
+            state.goals[index].currentMoney += amt;
+            saveState();
+            renderAll();
+        }
     });
 }
 
@@ -430,7 +474,9 @@ function updateHomeGoalSummary() {
             let montantHebdo = (argentRestant / semainesRestantes).toFixed(2);
             proactiveMessage = `Plus que ${daysRemaining} jours pour ${topGoal.title}. Mets de côté ${montantHebdo}€/semaine ! 🦾`;
         } else if (topGoal.hasPrice && topGoal.currentMoney >= topGoal.targetMoney) {
-             proactiveMessage = `Objectif financier atteint pour ${topGoal.title} ! 🎉`;
+             proactiveMessage = `Objectif atteint pour ${topGoal.title} ! 🎉`;
+        } else if (!topGoal.date) {
+            proactiveMessage = `${topGoal.title}`;
         }
 
         summary.innerHTML = `
@@ -443,11 +489,6 @@ function updateHomeGoalSummary() {
     } else {
         summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`;
     }
-}
-
-function addMoneyToGoal(index) {
-    let amt = prompt("Montant à ajouter (€) :");
-    if(amt && !isNaN(amt)) { state.goals[index].currentMoney += parseFloat(amt); saveState(); renderAll(); }
 }
 
 // ================= GESTION QR CODES ================= */
