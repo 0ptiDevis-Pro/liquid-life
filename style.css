@@ -76,7 +76,7 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .action-bar { margin-bottom: 24px; }
 .btn-primary, .btn-secondary {
     padding: 14px 20px; border-radius: 18px; font-weight: 600; font-size: 0.95rem;
-    border: none; cursor: pointer; transition: transform 0.2s var(--spring-easing), background 0.2s;
+    border: none; cursor: pointer; transition: transform 0.2s var(--spring-easing), background 0.2s, opacity 0.3s;
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn-primary { background: var(--accent-blue); color: white; width: 100%; margin-top: 12px; }
@@ -94,6 +94,26 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 }
 .btn-icon:active { transform: scale(0.85); }
 .btn-icon.danger { color: var(--error-red); }
+
+/* ================= TOGGLES NOTIFICATIONS ================= */
+.notification-list { display: flex; flex-direction: column; gap: 12px; }
+.notif-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 16px;
+    font-size: 0.9rem; font-weight: 500;
+}
+.toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(255,255,255,0.1); border-radius: 24px; transition: .4s;
+}
+.toggle-slider:before {
+    position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+    background-color: white; border-radius: 50%; transition: .4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toggle-switch input:checked + .toggle-slider { background-color: var(--success-green); }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
 
 /* ================= PROGRESSION ================= */
 .progress-bar-linear {
@@ -116,11 +136,9 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .qr-card:active { transform: scale(0.94); }
 .qr-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; margin-bottom: 8px; }
 .qr-card h4 { font-size: 0.9rem; font-weight: 600; color: white; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
-
 .qr-del-btn {
     background: rgba(239, 68, 68, 0.1); color: var(--error-red); border: 1px solid rgba(239, 68, 68, 0.15);
-    width: 100%; padding: 10px; border-radius: 12px; font-weight: 600; font-size: 0.8rem; cursor: pointer;
-    transition: background 0.2s, transform 0.2s;
+    width: 100%; padding: 10px; border-radius: 12px; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: background 0.2s, transform 0.2s;
 }
 .qr-del-btn:active { transform: scale(0.95); background: rgba(239, 68, 68, 0.2); }
 .file-upload-box { border: 2px dashed var(--glass-border); border-radius: 16px; padding: 24px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.02); transition: background 0.2s; }
@@ -162,17 +180,12 @@ form input[type="text"], form input[type="time"], form input[type="date"], form 
 form input:focus { border-color: var(--accent-blue); background: rgba(255,255,255,0.08); }
 .form-row { display: flex; gap: 12px; }
 
-/* Lignes de la Semaine Type */
-.day-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05);
-}
+.day-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .day-row label { flex: 1; font-weight: 600; font-size: 0.95rem; }
 .day-row input[type="time"] { width: 110px; margin-bottom: 0; padding: 10px; text-align: center; }
 .day-row span { color: #A1A1AA; font-size: 0.85rem; }
 
 .checkbox-container { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 0.95rem; color: #FFF; }
 .checkbox-container input[type="checkbox"] { margin: 0; width: 20px; height: 20px; accent-color: var(--accent-blue); cursor: pointer; }
-
 .equal-buttons { display: flex; gap: 12px; margin-top: 16px; }
 .equal-buttons button { flex: 1; margin-top: 0; }
