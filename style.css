@@ -146,6 +146,7 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .qr-card:active { transform: scale(0.94); }
 .qr-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; margin-bottom: 8px; }
 .qr-card h4 { font-size: 0.9rem; font-weight: 600; color: white; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+
 .qr-del-btn {
     background: rgba(239, 68, 68, 0.1); color: var(--error-red); border: 1px solid rgba(239, 68, 68, 0.15);
     width: 100%; padding: 10px; border-radius: 12px; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: background 0.2s, transform 0.2s;
