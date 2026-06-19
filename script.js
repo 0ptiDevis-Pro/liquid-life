@@ -33,7 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     registerServiceWorker();
     renderAll();
     
-    // Boucle de vérification globale (Agenda + Notifications) chaque minute
     setInterval(() => {
         renderAll();
         checkNotifications();
@@ -188,13 +187,12 @@ function importData(event) {
     reader.readAsText(file); event.target.value = '';
 }
 
-// ================= NOTIFICATIONS LOCALES (WEB API & SERVICE WORKER) ================= */
+// ================= NOTIFICATIONS LOCALES (WEB API) ================= */
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Registration failed: ', err));
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed: ', err));
     }
 }
-
 function initNotificationsUI() {
     document.getElementById('toggle-notif-sport').checked = state.notifications.sport;
     document.getElementById('toggle-notif-school').checked = state.notifications.school;
@@ -203,205 +201,123 @@ function initNotificationsUI() {
     document.getElementById('toggle-notif-motivation').checked = state.notifications.motivation;
     updateNotificationButtonUI();
 }
-
 function updateNotificationButtonUI() {
     const btn = document.getElementById('btn-request-notif');
     if (Notification.permission === 'granted') {
         btn.innerText = "Permissions accordées ✨";
-        btn.style.background = "rgba(34, 197, 94, 0.15)";
-        btn.style.color = "var(--success-green)";
-        btn.disabled = true;
+        btn.style.background = "rgba(34, 197, 94, 0.15)"; btn.style.color = "var(--success-green)"; btn.disabled = true;
     } else if (Notification.permission === 'denied') {
-        btn.innerText = "Notifications bloquées par le navigateur";
-        btn.style.background = "rgba(239, 68, 68, 0.15)";
-        btn.style.color = "var(--error-red)";
+        btn.innerText = "Notifications bloquées";
+        btn.style.background = "rgba(239, 68, 68, 0.15)"; btn.style.color = "var(--error-red)";
     }
 }
-
 function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-        showCustomAlert("Non supporté", "Ce navigateur ne supporte pas les notifications système.");
-        return;
-    }
+    if (!("Notification" in window)) { showCustomAlert("Non supporté", "Navigateur incompatible."); return; }
     Notification.requestPermission().then(permission => {
-        if (permission === "granted") {
-            showCustomAlert("Super ! 🔔", "Les notifications sont activées sur cet appareil.", true);
-        } else {
-            showCustomAlert("Autorisation refusée", "Tu dois autoriser les notifications dans les paramètres de ton navigateur/téléphone pour utiliser cette fonction.");
-        }
+        if (permission === "granted") showCustomAlert("Super ! 🔔", "Les notifications sont activées.", true);
+        else showCustomAlert("Refusée", "Autorise les notifications dans les paramètres.");
         updateNotificationButtonUI();
     });
 }
-
 function toggleNotification(type) {
     if (Notification.permission !== "granted") {
         document.getElementById(`toggle-notif-${type}`).checked = false;
-        showCustomAlert("Attention", "Active d'abord les autorisations de notifications (Bouton au-dessus) !");
-        return;
+        showCustomAlert("Attention", "Active d'abord les autorisations de notifications !"); return;
     }
-    state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked;
-    saveState();
+    state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked; saveState();
 }
-
 function triggerNotification(id, title, body) {
     const today = getTodayString();
-    if (state.lastNotified[id] === today) return; // Anti-spam 1x/jour
+    if (state.lastNotified[id] === today) return; 
 
     if (Notification.permission === 'granted' && navigator.serviceWorker) {
         navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification(title, {
-                body: body,
-                icon: 'icon.png', // Fallback natif
-                badge: 'icon.png',
-                vibrate: [200, 100, 200]
-            });
-            state.lastNotified[id] = today;
-            saveState();
+            reg.showNotification(title, { body: body, icon: 'icon.png', badge: 'icon.png', vibrate: [200, 100, 200] });
+            state.lastNotified[id] = today; saveState();
         });
     }
 }
-
 function checkNotifications() {
     if (Notification.permission !== 'granted') return;
-    const now = new Date();
-    const currentH = String(now.getHours()).padStart(2, '0');
-    const currentM = String(now.getMinutes()).padStart(2, '0');
-    const timeStr = `${currentH}:${currentM}`;
+    const now = new Date(); const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const today = getTodayString();
 
-    // 1. Quêtes Sport (09:00)
     if (state.notifications.sport && timeStr === "09:00" && state.lastNotified.sport !== today) {
-        let bodyText = "Mission Sport du jour : ";
-        if (state.workoutGenerated && state.workoutGenerated.length > 0) {
-            bodyText += state.workoutGenerated.map(ex => `${ex.target} ${ex.name}`).join(', ');
-        } else { bodyText = "Génère ta routine et viens la valider ! ⚡"; }
+        let bodyText = "Mission Sport : " + (state.workoutGenerated && state.workoutGenerated.length > 0 ? state.workoutGenerated.map(ex => `${ex.target} ${ex.name}`).join(', ') : "Génère ta routine ! ⚡");
         triggerNotification('sport', '💪 Entraînement !', bodyText);
     }
-
-    // 2. Début des cours H-30min
     if (state.notifications.school && state.lastNotified.school !== today) {
-        let currentDayIdx = now.getDay();
-        let weekSched = state.weekSchedule[currentDayIdx];
+        let weekSched = state.weekSchedule[now.getDay()];
         if (weekSched && weekSched.start) {
-            let startMins = timeToMinutes(weekSched.start);
-            let nowMins = now.getHours() * 60 + now.getMinutes();
-            if (startMins - nowMins === 30) {
-                triggerNotification('school', '📚 Prépare-toi !', `Début des cours dans 30 min ! ⏳ (à ${weekSched.start})`);
-            }
+            let startMins = timeToMinutes(weekSched.start), nowMins = now.getHours() * 60 + now.getMinutes();
+            if (startMins - nowMins === 30) triggerNotification('school', '📚 Prépare-toi !', `Début des cours dans 30 min (à ${weekSched.start})`);
         }
     }
-
-    // 3. Objectifs (19:00)
-    if (state.notifications.goals && timeStr === "19:00" && state.lastNotified.goals !== today) {
-        if (state.goals.length > 0) {
-            const topGoal = state.goals[0];
-            let daysRemaining = calculateDaysRemaining(topGoal.date);
-            let notifBody = "";
-            if (topGoal.hasPrice && topGoal.targetMoney > topGoal.currentMoney && daysRemaining > 0) {
-                let argentRestant = topGoal.targetMoney - topGoal.currentMoney;
-                let semainesRestantes = Math.max(1, Math.ceil(daysRemaining / 7));
-                let montantHebdo = (argentRestant / semainesRestantes).toFixed(2);
-                notifBody = `⏳ Plus que ${daysRemaining} j. Cagnotte : ${topGoal.currentMoney}€ / ${topGoal.targetMoney}€ (Mets de côté ${montantHebdo}€ / semaine !)`;
-            } else {
-                notifBody = `Plus que ${daysRemaining} jours restants. Reste focus !`;
-            }
-            triggerNotification('goals', `🎯 Objectif : ${topGoal.title}`, notifBody);
-        }
+    if (state.notifications.goals && timeStr === "19:00" && state.lastNotified.goals !== today && state.goals.length > 0) {
+        let topGoal = state.goals.find(g => g.isFavorite) || state.goals[0];
+        let daysRemaining = calculateDaysRemaining(topGoal.date);
+        let notifBody = (topGoal.hasPrice && topGoal.targetMoney > topGoal.currentMoney && daysRemaining > 0) ? `⏳ Plus que ${daysRemaining} j. Mets de côté ${((topGoal.targetMoney - topGoal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / semaine !` : `Plus que ${daysRemaining} jours restants.`;
+        triggerNotification('goals', `🎯 ${topGoal.title}`, notifBody);
     }
-
-    // 4. Fin du Feu Sacré (20:00)
     if (state.notifications.streak && timeStr === "20:00" && state.lastNotified.streak !== today) {
-        if (state.lastMissionDate !== today) { // Si mission non validée
-            triggerNotification('streak', '⚠️ Alerte Feu Sacré', "Ton Feu Sacré est en danger ! Valide ta quête avant minuit pour sauver ta série.");
-        }
+        if (state.lastMissionDate !== today) triggerNotification('streak', '⚠️ Feu Sacré', "Valide ta quête avant minuit pour sauver ta série !");
     }
-
-    // 5. Motivation (13:00)
     if (state.notifications.motivation && timeStr === "13:00" && state.lastNotified.motivation !== today) {
-        const quoteIndex = localStorage.getItem('ll_quoteIndex') || 0;
-        triggerNotification('motivation', '✨ Motivation', quotes[quoteIndex]);
+        triggerNotification('motivation', '✨ Motivation', quotes[localStorage.getItem('ll_quoteIndex') || 0]);
     }
 }
 
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
 const dayMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; 
 const dayNamesFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-
 function timeToMinutes(timeString) { 
     if(!timeString) return 0;
     const [h, m] = timeString.split(':').map(Number); return h * 60 + m; 
 }
-
 document.querySelector('[onclick="openModal(\'week-modal\')"]').addEventListener('click', () => {
     dayMap.forEach((day, index) => {
         if(index === 0) return; 
-        if(state.weekSchedule[index]) {
-            document.getElementById(`time-${day}-start`).value = state.weekSchedule[index].start;
-            document.getElementById(`time-${day}-end`).value = state.weekSchedule[index].end;
-        }
+        if(state.weekSchedule[index]) { document.getElementById(`time-${day}-start`).value = state.weekSchedule[index].start; document.getElementById(`time-${day}-end`).value = state.weekSchedule[index].end; }
     });
-    if(state.weekSchedule[0]) {
-        document.getElementById(`time-sun-start`).value = state.weekSchedule[0].start;
-        document.getElementById(`time-sun-end`).value = state.weekSchedule[0].end;
-    }
+    if(state.weekSchedule[0]) { document.getElementById(`time-sun-start`).value = state.weekSchedule[0].start; document.getElementById(`time-sun-end`).value = state.weekSchedule[0].end; }
 });
-
 function saveWeekSchedule(e) {
-    e.preventDefault();
-    state.weekSchedule = {};
+    e.preventDefault(); state.weekSchedule = {};
     dayMap.forEach((day, index) => {
-        const s = document.getElementById(`time-${day}-start`).value;
-        const en = document.getElementById(`time-${day}-end`).value;
+        const s = document.getElementById(`time-${day}-start`).value, en = document.getElementById(`time-${day}-end`).value;
         if(s && en) { state.weekSchedule[index] = { start: s, end: en }; }
     });
     saveState(); closeModal('week-modal'); renderAll();
 }
-
 function updateSchoolDisplay() {
-    const now = new Date();
-    const currentDay = now.getDay();
-    const currentMins = now.getHours() * 60 + now.getMinutes();
-
+    const now = new Date(); const currentDay = now.getDay(); const currentMins = now.getHours() * 60 + now.getMinutes();
     let displayDay = null; let isToday = false; let statusText = ""; let timeText = ""; let progressHTML = "";
 
     if (state.weekSchedule[currentDay]) {
-        let sMins = timeToMinutes(state.weekSchedule[currentDay].start);
-        let eMins = timeToMinutes(state.weekSchedule[currentDay].end);
-
-        if (currentMins < sMins) {
-            displayDay = currentDay; isToday = true; statusText = "Aujourd'hui"; timeText = `Débute à ${state.weekSchedule[currentDay].start}`;
-        } else if (currentMins >= sMins && currentMins < eMins) {
+        let sMins = timeToMinutes(state.weekSchedule[currentDay].start), eMins = timeToMinutes(state.weekSchedule[currentDay].end);
+        if (currentMins < sMins) { displayDay = currentDay; isToday = true; statusText = "Aujourd'hui"; timeText = `Débute à ${state.weekSchedule[currentDay].start}`; } 
+        else if (currentMins >= sMins && currentMins < eMins) {
             displayDay = currentDay; isToday = true; statusText = "En cours"; timeText = `Finit à ${state.weekSchedule[currentDay].end}`;
             let percent = Math.round(((currentMins - sMins) / (eMins - sMins)) * 100);
             progressHTML = `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${percent}%;"></div></div>`;
         }
     }
-
     if (displayDay === null) {
         for (let i = 1; i <= 7; i++) {
             let nextDayCheck = (currentDay + i) % 7;
             if (state.weekSchedule[nextDayCheck]) {
-                displayDay = nextDayCheck;
-                statusText = i === 1 ? "Demain" : `Prochain : ${dayNamesFr[nextDayCheck]}`;
-                timeText = `De ${state.weekSchedule[nextDayCheck].start} à ${state.weekSchedule[nextDayCheck].end}`;
-                break;
+                displayDay = nextDayCheck; statusText = i === 1 ? "Demain" : `Prochain : ${dayNamesFr[nextDayCheck]}`;
+                timeText = `De ${state.weekSchedule[nextDayCheck].start} à ${state.weekSchedule[nextDayCheck].end}`; break;
             }
         }
     }
 
-    const homeCard = document.getElementById('home-schedule-status');
-    const schoolPage = document.getElementById('full-schedule-display');
-
+    const homeCard = document.getElementById('home-schedule-status'); const schoolPage = document.getElementById('full-schedule-display');
     if (displayDay !== null) {
         homeCard.innerHTML = `<p style="font-weight:600; color:${isToday && statusText === 'En cours' ? 'var(--accent-blue)' : '#FFF'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
-        schoolPage.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div><h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3><p class="subtitle" style="font-size:1rem;">${timeText}</p></div>
-                <div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px;"><i data-lucide="clock" style="width:24px; height:24px;"></i></div>
-            </div>${progressHTML}`;
+        schoolPage.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3><p class="subtitle" style="font-size:1rem;">${timeText}</p></div><div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px;"><i data-lucide="clock" style="width:24px; height:24px;"></i></div></div>${progressHTML}`;
     } else {
-        homeCard.innerHTML = `<p class="subtitle">Aucun horaire.</p>`;
-        schoolPage.innerHTML = `<p class="subtitle text-center">Aucun horaire de configuré.</p>`;
+        homeCard.innerHTML = `<p class="subtitle">Aucun horaire.</p>`; schoolPage.innerHTML = `<p class="subtitle text-center">Aucun horaire de configuré pour la semaine.</p>`;
     }
 }
 
@@ -416,25 +332,17 @@ function generateDailyWorkout() {
     state.workoutGenerated = routine; state.currentMission = `${routine[0].target} ${routine[0].name}`; saveState(); renderAll();
 }
 function renderWorkout() {
-    const list = document.getElementById('workout-list');
-    list.innerHTML = "";
+    const list = document.getElementById('workout-list'); list.innerHTML = "";
     if (!state.workoutGenerated) return;
-
     state.workoutGenerated.forEach((ex, index) => {
-        const card = document.createElement('div');
-        card.className = "glass-card item-card";
-        if(ex.done) card.style.opacity = "0.5";
-        card.innerHTML = `
-            <div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div>
-            <div class="item-actions">
-                ${!ex.done ? `<button class="btn-icon interactive-btn" style="background:var(--glass-border);" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success-green)"></i>'}
-            </div>`;
+        const card = document.createElement('div'); card.className = "glass-card item-card"; if(ex.done) card.style.opacity = "0.5";
+        card.innerHTML = `<div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div><div class="item-actions">${!ex.done ? `<button class="btn-icon interactive-btn" style="background:var(--glass-border);" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success-green)"></i>'}</div>`;
         list.appendChild(card);
     });
 }
 function completeWorkoutExercise(index) { state.workoutGenerated[index].done = true; saveState(); renderAll(); }
 
-// ================= GESTION DES OBJECTIFS & COACHING PROACTIF ================= */
+// ================= GESTION DES OBJECTIFS & FAVORIS ================= */
 function togglePriceField(checked) { document.getElementById('price-fields').style.display = checked ? 'flex' : 'none'; }
 function saveGoal(e) {
     e.preventDefault();
@@ -443,7 +351,8 @@ function saveGoal(e) {
         date: document.getElementById('goal-date').value, creationDate: getTodayString(),
         hasPrice: document.getElementById('goal-has-price').checked,
         currentMoney: parseFloat(document.getElementById('goal-current-money').value) || 0,
-        targetMoney: parseFloat(document.getElementById('goal-target-money').value) || 0
+        targetMoney: parseFloat(document.getElementById('goal-target-money').value) || 0,
+        isFavorite: state.goals.length === 0 // Premier objectif créé devient favori par défaut
     });
     saveState(); closeModal('goal-modal'); document.getElementById('goal-form').reset(); togglePriceField(false); renderAll();
 }
@@ -456,9 +365,15 @@ function calculateGoalTimePercent(goal) {
 function calculateDaysRemaining(targetDate) {
     if (!targetDate) return 0;
     const diffTime = new Date(targetDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
+    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 }
+function toggleFavoriteGoal(index) {
+    const wasFav = state.goals[index].isFavorite;
+    state.goals.forEach(g => g.isFavorite = false); // Retire le favori de tous les autres
+    if (!wasFav) state.goals[index].isFavorite = true;
+    saveState(); renderAll();
+}
+
 function renderGoals() {
     const list = document.getElementById('goals-list'); list.innerHTML = "";
     if(state.goals.length === 0) return;
@@ -474,15 +389,22 @@ function renderGoals() {
         if (goal.hasPrice && goal.targetMoney > 0) {
             let moneyPercent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
             let barColor = moneyPercent >= 80 ? "var(--success-green)" : "var(--accent-blue)";
-            let coachingText = goal.currentMoney >= goal.targetMoney ? "Financement complété ! 🎉" : (goal.date ? `Mets de côté ${((goal.targetMoney - goal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / sem. pour y arriver à temps.` : "");
+            let coachingText = goal.currentMoney >= goal.targetMoney ? "Financement complété ! 🎉" : (goal.date ? `Mets de côté ${((goal.targetMoney - goal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / sem.` : "");
             priceHTML = `<p class="subtitle" style="margin-top: 12px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p><div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>${coachingText ? `<p class="subtitle" style="font-size:0.8rem; margin-top:4px; color:#A1A1AA;">${coachingText}</p>` : ''}`;
         }
 
         const card = document.createElement('div'); card.className = "glass-card";
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div style="flex: 1; padding-right: 10px;"><h4>${goal.title}</h4><p class="subtitle" style="margin-bottom:8px;">${goal.desc || ''}</p>${daysBadge}</div>
+                <div style="flex: 1; padding-right: 10px;">
+                    <h4 style="display:flex; align-items:center; gap:6px;">
+                        ${goal.title}
+                        ${goal.isFavorite ? '<i data-lucide="heart" style="width:16px;height:16px;fill:var(--error-red);color:var(--error-red);"></i>' : ''}
+                    </h4>
+                    <p class="subtitle" style="margin-bottom:8px;">${goal.desc || ''}</p>${daysBadge}
+                </div>
                 <div class="item-actions">
+                    <button class="btn-icon interactive-btn ${goal.isFavorite ? 'favorite' : ''}" onclick="toggleFavoriteGoal(${index})"><i data-lucide="heart"></i></button>
                     ${goal.hasPrice ? `<button class="btn-icon interactive-btn" onclick="openGoalPrompt(${index})"><i data-lucide="plus"></i></button>` : ''}
                     <button class="btn-icon danger interactive-btn" onclick="triggerDelete('goal', ${index})"><i data-lucide="trash"></i></button>
                 </div>
@@ -490,16 +412,13 @@ function renderGoals() {
         list.appendChild(card);
     });
 }
-function openGoalPrompt(index) {
-    showCustomPrompt("Montant épargné", "Combien d'argent as-tu mis de côté ? (€)", (val) => {
-        let amt = parseFloat(val);
-        if(!isNaN(amt) && amt > 0) { state.goals[index].currentMoney += amt; saveState(); renderAll(); }
-    });
-}
+
 function updateHomeGoalSummary() {
     const summary = document.getElementById('home-goal-summary');
     if (state.goals.length > 0) {
-        const topGoal = state.goals[0];
+        let topGoal = state.goals.find(g => g.isFavorite);
+        if (!topGoal) topGoal = state.goals[0];
+
         const timePercent = calculateGoalTimePercent(topGoal);
         let daysRemaining = calculateDaysRemaining(topGoal.date);
         let proactiveMessage = `Plus que ${daysRemaining} jours pour ${topGoal.title}.`;
@@ -509,9 +428,14 @@ function updateHomeGoalSummary() {
         } else if (topGoal.hasPrice && topGoal.currentMoney >= topGoal.targetMoney) { proactiveMessage = `Objectif atteint pour ${topGoal.title} ! 🎉`; } 
         else if (!topGoal.date) { proactiveMessage = `${topGoal.title}`; }
 
-        summary.innerHTML = `<p style="font-weight:600; color:#FFF; font-size:1rem; line-height:1.4;">${proactiveMessage}</p>
+        summary.innerHTML = `<p style="font-weight:600; color:#FFF; font-size:1rem; line-height:1.4;">${topGoal.isFavorite ? '<i data-lucide="heart" style="width:14px; height:14px; fill:var(--error-red); color:var(--error-red); display:inline-block; vertical-align:middle; margin-right:4px;"></i>' : ''} ${proactiveMessage}</p>
             ${topGoal.date ? `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-purple);"></div></div>` : ''}`;
     } else { summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`; }
+}
+function openGoalPrompt(index) {
+    showCustomPrompt("Montant épargné", "Combien as-tu mis de côté ? (€)", (val) => {
+        let amt = parseFloat(val); if(!isNaN(amt) && amt > 0) { state.goals[index].currentMoney += amt; saveState(); renderAll(); }
+    });
 }
 
 // ================= GESTION QR CODES ================= */
