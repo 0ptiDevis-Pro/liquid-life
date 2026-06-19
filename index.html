@@ -6,7 +6,6 @@
     <title>LiquidLife - Premium</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 </head>
 <body>
     <div class="liquid-bg"></div>
@@ -14,7 +13,7 @@
     <main class="app-container">
         <section id="tab-home" class="app-page active">
             <header class="page-header">
-                <h1>Hello ! 👋</h1>
+                <h1 id="welcome-text">Hello ! 👋</h1>
                 <p class="subtitle">Prêt à dominer ta journée ?</p>
             </header>
 
@@ -62,12 +61,15 @@
                 <div class="glass-card">
                     <div class="card-icon" style="color: #A1A1AA;"><i data-lucide="settings"></i></div>
                     <h3>⚙️ Paramètres & Sauvegarde</h3>
-                    <p class="subtitle" style="margin-bottom: 16px;">Ne perds jamais tes données.</p>
-                    <div class="equal-buttons">
-                        <button class="btn-secondary" onclick="exportData()"><i data-lucide="download"></i> Exporter (.json)</button>
-                        <button class="btn-secondary" onclick="document.getElementById('import-upload').click()"><i data-lucide="upload"></i> Importer (.json)</button>
+                    <p class="subtitle" style="margin-bottom: 16px;">Gère tes données.</p>
+                    <div class="equal-buttons" style="margin-top: 0;">
+                        <button class="btn-secondary" onclick="exportData()"><i data-lucide="download"></i> Exporter</button>
+                        <button class="btn-secondary" onclick="document.getElementById('import-upload').click()"><i data-lucide="upload"></i> Importer</button>
                         <input type="file" id="import-upload" accept=".json" style="display: none;" onchange="importData(event)">
                     </div>
+                    <button class="btn-primary btn-danger" style="margin-top: 12px; width: 100%;" onclick="openModal('reset-confirm-modal')">
+                        <i data-lucide="trash-2"></i> Tout réinitialiser
+                    </button>
                 </div>
             </div>
         </section>
@@ -75,18 +77,17 @@
         <section id="tab-school" class="app-page">
             <header class="page-header">
                 <h1>Mon Agenda</h1>
-                <p class="subtitle" id="school-timer">Gère ton planning</p>
+                <p class="subtitle" id="school-timer">Ta journée de cours</p>
             </header>
 
-            <div class="action-bar" style="display: flex; gap: 10px;">
-                <button class="btn-secondary interactive-btn" onclick="openModal('course-modal')" style="flex: 1;"><i data-lucide="plus"></i> Manuel</button>
-                <button class="btn-primary interactive-btn" onclick="document.getElementById('pdf-upload').click()" style="flex: 1; margin-top: 0;"><i data-lucide="file-text"></i> Sync PDF</button>
-                <input type="file" id="pdf-upload" accept="application/pdf" style="display: none;" onchange="importAndParsePDF(this)">
+            <div class="glass-card" style="margin-bottom: 24px;">
+                <div id="full-schedule-display">
+                    </div>
             </div>
-            
-            <p id="pdf-loading-text" class="subtitle text-center" style="display: none; margin-bottom: 16px;">Analyse intelligente du PDF... 🤖</p>
 
-            <div id="courses-list" class="list-container"></div>
+            <div class="action-bar">
+                <button class="btn-secondary interactive-btn" onclick="openModal('week-modal')" style="width: 100%;"><i data-lucide="settings-2"></i> Configurer ma semaine type</button>
+            </div>
         </section>
 
         <section id="tab-sport" class="app-page">
@@ -154,19 +155,75 @@
         </button>
     </nav>
 
-    <div id="course-modal" class="modal-overlay">
-        <div class="glass-card modal-content">
-            <h2>Ajouter un cours</h2>
-            <form id="course-form" onsubmit="saveCourse(event)">
-                <input type="text" id="course-subject" placeholder="Matière (ex: Maths)" required>
-                <div class="form-row">
-                    <input type="time" id="course-start" required>
-                    <input type="time" id="course-end" required>
+    <div id="name-modal" class="modal-overlay">
+        <div class="glass-card modal-content text-center">
+            <div class="card-icon blue-icon" style="margin: 0 auto 15px auto;"><i data-lucide="user"></i></div>
+            <h2>Comment t'appelles-tu ?</h2>
+            <p class="subtitle" style="margin-bottom: 20px;">Pour personnaliser ton expérience.</p>
+            <input type="text" id="user-name-input" placeholder="Ton prénom..." required>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="saveUserName()">Commencer 🚀</button>
+        </div>
+    </div>
+
+    <div id="alert-modal" class="modal-overlay">
+        <div class="glass-card modal-content text-center">
+            <div id="alert-icon" class="card-icon" style="margin: 0 auto 15px auto;"></div>
+            <h2 id="alert-title">Info</h2>
+            <p class="subtitle" id="alert-desc" style="margin-bottom: 20px; line-height: 1.5;"></p>
+            <button class="btn-primary" style="width: 100%;" onclick="closeModal('alert-modal')">OK</button>
+        </div>
+    </div>
+
+    <div id="prompt-modal" class="modal-overlay">
+        <div class="glass-card modal-content text-center">
+            <div class="card-icon purple-icon" style="margin: 0 auto 15px auto;"><i data-lucide="edit-3"></i></div>
+            <h2 id="prompt-title">Saisie</h2>
+            <p class="subtitle" id="prompt-desc" style="margin-bottom: 20px;"></p>
+            <input type="number" id="prompt-input" placeholder="0" min="0" step="0.01">
+            <div class="modal-buttons equal-buttons">
+                <button class="btn-secondary" onclick="closeModal('prompt-modal')">Annuler</button>
+                <button class="btn-primary" onclick="submitCustomPrompt()">Valider</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="week-modal" class="modal-overlay">
+        <div class="glass-card modal-content" style="max-height: 80vh; overflow-y: auto;">
+            <h2>Semaine Type</h2>
+            <p class="subtitle" style="margin-bottom: 20px;">Laisse vide si tu n'as pas cours/travail ce jour-là.</p>
+            <form id="week-form" onsubmit="saveWeekSchedule(event)">
+                <div class="day-row">
+                    <label>Lundi</label>
+                    <input type="time" id="time-mon-start"><span>à</span><input type="time" id="time-mon-end">
                 </div>
-                <input type="text" id="course-room" placeholder="Salle (Optionnel)">
+                <div class="day-row">
+                    <label>Mardi</label>
+                    <input type="time" id="time-tue-start"><span>à</span><input type="time" id="time-tue-end">
+                </div>
+                <div class="day-row">
+                    <label>Mercredi</label>
+                    <input type="time" id="time-wed-start"><span>à</span><input type="time" id="time-wed-end">
+                </div>
+                <div class="day-row">
+                    <label>Jeudi</label>
+                    <input type="time" id="time-thu-start"><span>à</span><input type="time" id="time-thu-end">
+                </div>
+                <div class="day-row">
+                    <label>Vendredi</label>
+                    <input type="time" id="time-fri-start"><span>à</span><input type="time" id="time-fri-end">
+                </div>
+                <div class="day-row">
+                    <label>Samedi</label>
+                    <input type="time" id="time-sat-start"><span>à</span><input type="time" id="time-sat-end">
+                </div>
+                <div class="day-row">
+                    <label>Dimanche</label>
+                    <input type="time" id="time-sun-start"><span>à</span><input type="time" id="time-sun-end">
+                </div>
+
                 <div class="modal-buttons equal-buttons">
-                    <button type="button" class="btn-secondary" onclick="closeModal('course-modal')">Annuler</button>
-                    <button type="submit" class="btn-primary">Enregistrer</button>
+                    <button type="button" class="btn-secondary" onclick="closeModal('week-modal')">Annuler</button>
+                    <button type="submit" class="btn-primary">Sauvegarder</button>
                 </div>
             </form>
         </div>
@@ -209,6 +266,20 @@
             <div class="modal-buttons equal-buttons">
                 <button class="btn-secondary" onclick="closeModal('confirm-modal')">Annuler</button>
                 <button class="btn-primary btn-danger" id="confirm-delete-btn">Supprimer</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reset-confirm-modal" class="modal-overlay">
+        <div class="glass-card modal-content text-center">
+            <div class="card-icon" style="background: rgba(239, 68, 68, 0.1); margin: 0 auto 15px auto;">
+                <i data-lucide="alert-octagon" style="color: #EF4444;"></i>
+            </div>
+            <h2>Tout réinitialiser ?</h2>
+            <p class="subtitle" style="margin-bottom: 20px;">Cela remettra le Feu Sacré à 0 et effacera tous les codes, objectifs et horaires. Ton prénom sera conservé.</p>
+            <div class="modal-buttons equal-buttons">
+                <button class="btn-secondary" onclick="closeModal('reset-confirm-modal')">Annuler</button>
+                <button class="btn-primary btn-danger" onclick="executeFullReset()">Tout effacer</button>
             </div>
         </div>
     </div>
