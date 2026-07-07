@@ -184,96 +184,93 @@ function importData(event) {
     reader.readAsText(file); event.target.value = '';
 }
 
-// ================= NOTIFICATIONS CLOUD (ONESIGNAL & VERCEL) ================= */
+// ================= NOTIFICATIONS CLOUD (ONESIGNAL) ================= */
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        // Enregistre votre SW de cache
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed: ', err));
+    }
+}
+
+// Met à jour l'interface en fonction des droits de OneSignal
+async function updateNotificationAuthUI() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+        const hasPermission = await OneSignal.Notifications.permission;
+        const statusText = document.getElementById('notif-auth-status');
+        const promptDiv = document.getElementById('notif-permission-prompt');
+        
+        if (hasPermission) {
+            statusText.innerText = "Notifications Cloud activées ✨";
+            statusText.style.color = "#22C55E"; // Vert succès
+            if (promptDiv) promptDiv.style.display = "none";
+        } else {
+            statusText.innerText = "Non configuré ou bloqué";
+            statusText.style.color = "#F59E0B"; // Orange warning
+            if (promptDiv) promptDiv.style.display = "block";
+        }
+    });
+}
+
+// Appelé au chargement pour cocher les bonnes cases selon le LocalStorage
 function initNotificationsUI() {
-    document.getElementById('toggle-notif-sport').checked = state.notifications.sport;
-    document.getElementById('toggle-notif-school').checked = state.notifications.school;
-    document.getElementById('toggle-notif-goals').checked = state.notifications.goals;
-    document.getElementById('toggle-notif-streak').checked = state.notifications.streak;
-    document.getElementById('toggle-notif-motivation').checked = state.notifications.motivation;
-    
+    const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
+    types.forEach(type => {
+        const checkbox = document.getElementById(`notif-${type}`);
+        if (checkbox) {
+            checkbox.checked = state.notifications[type] || false;
+        }
+    });
     updateNotificationAuthUI();
 }
 
-function updateNotificationAuthUI() {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(function(OneSignal) {
-        const statusText = document.getElementById('notif-auth-status');
-        const promptBtn = document.getElementById('btn-request-notif');
-        
-        if (!statusText) return;
-
-        if (OneSignal.Notifications.permission) {
-            statusText.innerText = "Permissions accordées ✨";
-            statusText.style.color = "var(--success-green)";
-            if (promptBtn) promptBtn.style.display = "none";
-        } else {
-            statusText.innerText = "Ne rate aucune échéance.";
-            statusText.style.color = "#A1A1AA";
-            if (promptBtn) promptBtn.style.display = "block";
-        }
-    });
-}
-
+// Demande d'autorisation au clic sur le gros bouton
 function requestCloudNotificationPermission() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(function(OneSignal) {
-        OneSignal.Notifications.requestPermission().then((permission) => {
-            if (permission) {
-                showCustomAlert("Super ! 🔔", "Les notifications Cloud sont activées.", true);
-                updateNotificationAuthUI();
-                syncNotificationsWithCloud();
-            } else {
-                showCustomAlert("Refusée", "Autorise les notifications dans les paramètres.");
-            }
-        });
-    });
-}
-
-function toggleNotification(type) {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(function(OneSignal) {
-        if (!OneSignal.Notifications.permission) {
-            document.getElementById(`toggle-notif-${type}`).checked = false;
-            showCustomAlert("Attention", "Active d'abord les autorisations de notifications !");
-            return;
+    window.OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            await OneSignal.Notifications.requestPermission();
+            updateNotificationAuthUI();
+            // Synchronise les tags après acceptation
+            syncAllOneSignalTags(OneSignal);
+        } catch (err) {
+            console.error("Erreur d'autorisation OneSignal:", err);
         }
-        state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked; 
-        saveState();
-        syncNotificationsWithCloud();
     });
 }
 
-function syncNotificationsWithCloud() {
+// Appelé au changement des interrupteurs (Toggles)
+function toggleNotificationSetting(type) {
+    const checkbox = document.getElementById(`notif-${type}`);
+    if (!checkbox) return;
+
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
-        if (!OneSignal.Notifications.permission) return;
-
-        const subId = OneSignal.User.PushSubscription.id;
-        if (!subId) return;
-
-        try {
-            // Appel à l'API Serverless Vercel pour planifier via OneSignal
-            const response = await fetch('/api/schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    subscriptionId: subId,
-                    settings: state.notifications,
-                    schedule: state.weekSchedule,
-                    timezoneStr: Intl.DateTimeFormat().resolvedOptions().timeZone
-                })
-            });
-            
-            if (response.ok) {
-                console.log("Synchronisation Cloud réussie ✅");
-            }
-        } catch (error) {
-            console.error("Erreur de synchro Cloud :", error);
+        const hasPermission = await OneSignal.Notifications.permission;
+        if (!hasPermission) {
+            checkbox.checked = false;
+            alert("Active d'abord les Notifications Cloud avec le bouton ci-dessus !");
+            return;
         }
+        
+        // Sauvegarde locale
+        state.notifications[type] = checkbox.checked;
+        saveState();
+
+        // Envoi de la préférence à OneSignal pour le ciblage automatique
+        OneSignal.User.addTag(type, checkbox.checked ? "true" : "false");
     });
 }
 
+// Helper pour synchroniser tous les paramètres d'un coup
+function syncAllOneSignalTags(OneSignal) {
+    const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
+    const tags = {};
+    types.forEach(type => {
+        tags[type] = state.notifications[type] ? "true" : "false";
+    });
+    OneSignal.User.addTags(tags);
+}
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
 const dayMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; 
 const dayNamesFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
