@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/send-push?type=sport",
+      "schedule": "0 8 * * *" 
+    },
+    {
+      "path": "/api/send-push?type=motivation",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/send-push?type=goals",
+      "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/send-push?type=streak",
+      "schedule": "0 19 * * *"
+    }
+  ]
+}
