@@ -8,8 +8,7 @@ let state = {
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
-    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, goals: false, streak: false, motivation: false },
-    lastNotified: JSON.parse(localStorage.getItem('ll_lastNotified')) || { sport: "", school: "", goals: "", streak: "", motivation: "" }
+    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, goals: false, streak: false, motivation: false }
 };
 
 let pendingDelete = { type: null, index: null }; 
@@ -31,27 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initUserName();
     checkAppDay();
     initNotificationsUI();
-    registerServiceWorker();
     renderAll();
-    
-    // Interval principal (toutes les minutes)
-    setInterval(() => {
-        renderAll();
-        checkNotifications();
-    }, 60000);
-
-    // Écouteur pour forcer le check au retour sur l'app (Rattrapage notifications)
-    document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === 'visible') {
-            renderAll();
-            checkNotifications();
-        }
-    });
-
-    window.addEventListener("focus", () => {
-        renderAll();
-        checkNotifications();
-    });
 });
 
 function saveState() {
@@ -64,7 +43,6 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
     localStorage.setItem('ll_qrcodes', JSON.stringify(state.qrcodes));
     localStorage.setItem('ll_notifications', JSON.stringify(state.notifications));
-    localStorage.setItem('ll_lastNotified', JSON.stringify(state.lastNotified));
 }
 
 function getTodayString() {
@@ -123,8 +101,7 @@ function executeFullReset() {
     state = {
         userName: currentName, streak: 0, lastMissionDate: "", currentMission: "15 pompes",
         weekSchedule: {}, workoutGenerated: null, goals: [], qrcodes: [],
-        notifications: { sport: false, school: false, goals: false, streak: false, motivation: false },
-        lastNotified: { sport: "", school: "", goals: "", streak: "", motivation: "" }
+        notifications: { sport: false, school: false, goals: false, streak: false, motivation: false }
     };
     saveState();
     initNotificationsUI();
@@ -207,104 +184,94 @@ function importData(event) {
     reader.readAsText(file); event.target.value = '';
 }
 
-// ================= NOTIFICATIONS LOCALES (WEB API) ================= */
-function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed: ', err));
-    }
-}
+// ================= NOTIFICATIONS CLOUD (ONESIGNAL & VERCEL) ================= */
 function initNotificationsUI() {
     document.getElementById('toggle-notif-sport').checked = state.notifications.sport;
     document.getElementById('toggle-notif-school').checked = state.notifications.school;
     document.getElementById('toggle-notif-goals').checked = state.notifications.goals;
     document.getElementById('toggle-notif-streak').checked = state.notifications.streak;
     document.getElementById('toggle-notif-motivation').checked = state.notifications.motivation;
-    updateNotificationButtonUI();
+    
+    updateNotificationAuthUI();
 }
-function updateNotificationButtonUI() {
-    const btn = document.getElementById('btn-request-notif');
-    if (Notification.permission === 'granted') {
-        btn.innerText = "Permissions accordées ✨";
-        btn.style.background = "rgba(34, 197, 94, 0.15)"; btn.style.color = "var(--success-green)"; btn.disabled = true;
-    } else if (Notification.permission === 'denied') {
-        btn.innerText = "Notifications bloquées";
-        btn.style.background = "rgba(239, 68, 68, 0.15)"; btn.style.color = "var(--error-red)";
-    }
-}
-function requestNotificationPermission() {
-    if (!("Notification" in window)) { showCustomAlert("Non supporté", "Navigateur incompatible."); return; }
-    Notification.requestPermission().then(permission => {
-        if (permission === "granted") showCustomAlert("Super ! 🔔", "Les notifications sont activées.", true);
-        else showCustomAlert("Refusée", "Autorise les notifications dans les paramètres.");
-        updateNotificationButtonUI();
+
+function updateNotificationAuthUI() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(function(OneSignal) {
+        const statusText = document.getElementById('notif-auth-status');
+        const promptBtn = document.getElementById('btn-request-notif');
+        
+        if (!statusText) return;
+
+        if (OneSignal.Notifications.permission) {
+            statusText.innerText = "Permissions accordées ✨";
+            statusText.style.color = "var(--success-green)";
+            if (promptBtn) promptBtn.style.display = "none";
+        } else {
+            statusText.innerText = "Ne rate aucune échéance.";
+            statusText.style.color = "#A1A1AA";
+            if (promptBtn) promptBtn.style.display = "block";
+        }
     });
 }
-function toggleNotification(type) {
-    if (Notification.permission !== "granted") {
-        document.getElementById(`toggle-notif-${type}`).checked = false;
-        showCustomAlert("Attention", "Active d'abord les autorisations de notifications !"); return;
-    }
-    state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked; saveState();
-}
 
-function triggerNotification(id, title, body) {
-    const today = getTodayString();
-    if (state.lastNotified[id] === today) return; 
-
-    if (Notification.permission === 'granted' && navigator.serviceWorker) {
-        navigator.serviceWorker.ready.then(reg => {
-            reg.showNotification(title, { body: body, icon: 'icon.png', badge: 'icon.png', vibrate: [200, 100, 200] });
-            state.lastNotified[id] = today; saveState();
-        });
-    }
-}
-
-// LOGIQUE CORRIGÉE POUR LE BACKGROUND THROTTLING (Plages horaires >= au lieu de strict)
-function checkNotifications() {
-    if (Notification.permission !== 'granted') return;
-    
-    const now = new Date();
-    const currentMins = now.getHours() * 60 + now.getMinutes();
-    const today = getTodayString();
-
-    // 1. Quêtes Sport (09:00 -> 540 mins)
-    if (state.notifications.sport && currentMins >= 540 && state.lastNotified.sport !== today) {
-        let bodyText = "Mission Sport : " + (state.workoutGenerated && state.workoutGenerated.length > 0 ? state.workoutGenerated.map(ex => `${ex.target} ${ex.name}`).join(', ') : "Génère ta routine ! ⚡");
-        triggerNotification('sport', '💪 Entraînement !', bodyText);
-    }
-    
-    // 2. Début des cours H-30min (Différence en minutes)
-    if (state.notifications.school && state.lastNotified.school !== today) {
-        let weekSched = state.weekSchedule[now.getDay()];
-        if (weekSched && weekSched.start) {
-            let startMins = timeToMinutes(weekSched.start);
-            let diff = startMins - currentMins;
-            // Déclenchement si on est à 30min ou moins avant le cours, et pas encore commencé
-            if (diff <= 30 && diff > 0) {
-                triggerNotification('school', '📚 Prépare-toi !', `Début des cours dans ${diff} min (à ${weekSched.start})`);
+function requestCloudNotificationPermission() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(function(OneSignal) {
+        OneSignal.Notifications.requestPermission().then((permission) => {
+            if (permission) {
+                showCustomAlert("Super ! 🔔", "Les notifications Cloud sont activées.", true);
+                updateNotificationAuthUI();
+                syncNotificationsWithCloud();
+            } else {
+                showCustomAlert("Refusée", "Autorise les notifications dans les paramètres.");
             }
-        }
-    }
+        });
+    });
+}
 
-    // 3. Motivation (13:00 -> 780 mins)
-    if (state.notifications.motivation && currentMins >= 780 && state.lastNotified.motivation !== today) {
-        triggerNotification('motivation', '✨ Motivation', quotes[localStorage.getItem('ll_quoteIndex') || 0]);
-    }
-    
-    // 4. Objectifs (19:00 -> 1140 mins)
-    if (state.notifications.goals && currentMins >= 1140 && state.lastNotified.goals !== today && state.goals.length > 0) {
-        let topGoal = state.goals.find(g => g.isFavorite) || state.goals[0];
-        let daysRemaining = calculateDaysRemaining(topGoal.date);
-        let notifBody = (topGoal.hasPrice && topGoal.targetMoney > topGoal.currentMoney && daysRemaining > 0) ? `⏳ Plus que ${daysRemaining} j. Mets de côté ${((topGoal.targetMoney - topGoal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / semaine !` : `Plus que ${daysRemaining} jours restants.`;
-        triggerNotification('goals', `🎯 ${topGoal.title}`, notifBody);
-    }
-    
-    // 5. Fin du Feu Sacré (20:00 -> 1200 mins)
-    if (state.notifications.streak && currentMins >= 1200 && state.lastNotified.streak !== today) {
-        if (state.lastMissionDate !== today) {
-            triggerNotification('streak', '⚠️ Feu Sacré', "Valide ta quête avant minuit pour sauver ta série !");
+function toggleNotification(type) {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(function(OneSignal) {
+        if (!OneSignal.Notifications.permission) {
+            document.getElementById(`toggle-notif-${type}`).checked = false;
+            showCustomAlert("Attention", "Active d'abord les autorisations de notifications !");
+            return;
         }
-    }
+        state.notifications[type] = document.getElementById(`toggle-notif-${type}`).checked; 
+        saveState();
+        syncNotificationsWithCloud();
+    });
+}
+
+function syncNotificationsWithCloud() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+        if (!OneSignal.Notifications.permission) return;
+
+        const subId = OneSignal.User.PushSubscription.id;
+        if (!subId) return;
+
+        try {
+            // Appel à l'API Serverless Vercel pour planifier via OneSignal
+            const response = await fetch('/api/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subscriptionId: subId,
+                    settings: state.notifications,
+                    schedule: state.weekSchedule,
+                    timezoneStr: Intl.DateTimeFormat().resolvedOptions().timeZone
+                })
+            });
+            
+            if (response.ok) {
+                console.log("Synchronisation Cloud réussie ✅");
+            }
+        } catch (error) {
+            console.error("Erreur de synchro Cloud :", error);
+        }
+    });
 }
 
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
@@ -324,7 +291,12 @@ function saveWeekSchedule(e) {
         const s = document.getElementById(`time-${day}-start`).value, en = document.getElementById(`time-${day}-end`).value;
         if(s && en) { state.weekSchedule[index] = { start: s, end: en }; }
     });
-    saveState(); closeModal('week-modal'); renderAll();
+    saveState(); 
+    closeModal('week-modal'); 
+    renderAll();
+    
+    // On met à jour les serveurs Cloud pour les nouveaux horaires de cours
+    syncNotificationsWithCloud();
 }
 function updateSchoolDisplay() {
     const now = new Date(); const currentDay = now.getDay(); const currentMins = now.getHours() * 60 + now.getMinutes();
