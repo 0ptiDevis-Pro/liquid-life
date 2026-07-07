@@ -2,12 +2,16 @@ export default async function handler(req, res) {
   // Sécurité pour vérifier que la requête provient bien du planificateur Vercel
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.error("🔒 Auth échouée sur Vercel : Jeton Cron Invalide");
     return res.status(401).json({ error: "Non autorisé" });
   }
 
   // Récupère le paramètre dans l'URL (ex: ?type=sport)
   const { type } = req.query;
-  if (!type) return res.status(400).json({ error: "Type manquant" });
+  if (!type) {
+    console.warn("⚠️ Paramètre 'type' manquant dans l'appel Cron");
+    return res.status(400).json({ error: "Type manquant" });
+  }
 
   let title = "";
   let message = "";
@@ -54,8 +58,15 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+        console.error("❌ Erreur API OneSignal :", data);
+        return res.status(400).json({ success: false, data });
+    }
+    
+    console.log(`✅ Push [${type}] envoyé avec succès :`, data);
     return res.status(200).json({ success: true, data });
   } catch (error) {
+    console.error("❌ Erreur critique Serverless lors de l'envoi du Push :", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 }
