@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initUserName();
     checkAppDay();
     initNotificationsUI();
+    registerServiceWorker();
     renderAll();
 });
 
@@ -185,43 +186,75 @@ function importData(event) {
 }
 
 // ================= NOTIFICATIONS CLOUD (ONESIGNAL) ================= */
+
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        // Enregistre votre SW de cache
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed: ', err));
+        try {
+            navigator.serviceWorker.register('sw.js').catch(err => console.error('⚠️ Erreur SW local:', err));
+        } catch (e) {
+            console.error("⚠️ Erreur inattendue lors de l'enregistrement du SW.", e);
+        }
     }
 }
 
-// Met à jour l'interface en fonction des droits de OneSignal
+// Met à jour l'interface en fonction des droits de OneSignal et des contraintes HTTP
 async function updateNotificationAuthUI() {
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    
+    // 1. Diagnostic de sécurité strict
+    if (!isSecure) {
+        console.error("❌ Erreur Sécurité : OneSignal nécessite impérativement un contexte HTTPS sécurisé pour s'activer.");
+        const statusText = document.getElementById('notif-auth-status');
+        const promptDiv = document.getElementById('btn-request-notif');
+        if (statusText) {
+            statusText.innerText = "⚠️ HTTPS Requis (Déploie sur Vercel)";
+            statusText.style.color = "var(--error-red)";
+        }
+        if (promptDiv) promptDiv.style.display = "none";
+        return;
+    }
+
+    // 2. Vérification OneSignal asynchrone sécurisée
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
-        const hasPermission = await OneSignal.Notifications.permission;
-        const statusText = document.getElementById('notif-auth-status');
-        const promptDiv = document.getElementById('notif-permission-prompt');
-        
-        if (hasPermission) {
-            statusText.innerText = "Notifications Cloud activées ✨";
-            statusText.style.color = "#22C55E"; // Vert succès
-            if (promptDiv) promptDiv.style.display = "none";
-        } else {
-            statusText.innerText = "Non configuré ou bloqué";
-            statusText.style.color = "#F59E0B"; // Orange warning
-            if (promptDiv) promptDiv.style.display = "block";
+        try {
+            const hasPermission = await OneSignal.Notifications.permission;
+            const statusText = document.getElementById('notif-auth-status');
+            const promptBtn = document.getElementById('btn-request-notif');
+            
+            if (hasPermission) {
+                if (statusText) {
+                    statusText.innerText = "Notifications Cloud activées ✨";
+                    statusText.style.color = "#22C55E"; 
+                }
+                if (promptBtn) promptBtn.style.display = "none";
+            } else {
+                if (statusText) {
+                    statusText.innerText = "Non configuré ou bloqué";
+                    statusText.style.color = "#F59E0B"; 
+                }
+                if (promptBtn) promptBtn.style.display = "block";
+            }
+        } catch (error) {
+            console.error("⚠️ Erreur OneSignal : Impossible de vérifier les permissions.", error);
         }
     });
 }
 
 // Appelé au chargement pour cocher les bonnes cases selon le LocalStorage
 function initNotificationsUI() {
-    const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
-    types.forEach(type => {
-        const checkbox = document.getElementById(`notif-${type}`);
-        if (checkbox) {
-            checkbox.checked = state.notifications[type] || false;
-        }
-    });
-    updateNotificationAuthUI();
+    try {
+        const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
+        types.forEach(type => {
+            const checkbox = document.getElementById(`notif-${type}`);
+            if (checkbox) {
+                checkbox.checked = state.notifications[type] || false;
+            }
+        });
+        updateNotificationAuthUI();
+    } catch (e) {
+        console.error("⚠️ Erreur UI : Problème lors de l'initialisation visuelle des notifications.", e);
+    }
 }
 
 // Demande d'autorisation au clic sur le gros bouton
@@ -229,12 +262,21 @@ function requestCloudNotificationPermission() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
         try {
-            await OneSignal.Notifications.requestPermission();
+            const permission = await OneSignal.Notifications.requestPermission();
+            console.log("🔒 Résultat de la demande de permission :", permission);
+            
+            if (permission) {
+                showCustomAlert("Succès", "Les notifications sont activées !", true);
+            } else {
+                console.warn("🔒 Autorisation refusée : L'utilisateur a bloqué les notifications au niveau du système.");
+                showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres de votre navigateur.");
+            }
+            
             updateNotificationAuthUI();
-            // Synchronise les tags après acceptation
             syncAllOneSignalTags(OneSignal);
         } catch (err) {
-            console.error("Erreur d'autorisation OneSignal:", err);
+            console.error("⚠️ Erreur critique lors de la demande d'autorisation OneSignal:", err);
+            showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
         }
     });
 }
@@ -246,31 +288,44 @@ function toggleNotificationSetting(type) {
 
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
-        const hasPermission = await OneSignal.Notifications.permission;
-        if (!hasPermission) {
-            checkbox.checked = false;
-            alert("Active d'abord les Notifications Cloud avec le bouton ci-dessus !");
-            return;
+        try {
+            const hasPermission = await OneSignal.Notifications.permission;
+            if (!hasPermission) {
+                checkbox.checked = false;
+                console.warn(`🔒 Action annulée : Permission OneSignal manquante pour activer ${type}`);
+                showCustomAlert("Attention", "Active d'abord les Notifications Cloud avec le bouton ci-dessus !");
+                return;
+            }
+            
+            // Sauvegarde locale
+            state.notifications[type] = checkbox.checked;
+            saveState();
+
+            // Envoi de la préférence à OneSignal pour le ciblage automatique
+            const tagValue = checkbox.checked ? "true" : "false";
+            OneSignal.User.addTag(type, tagValue);
+            console.log(`📡 Tag OneSignal synchronisé : [${type}] -> ${tagValue}`);
+        } catch (e) {
+            console.error(`⚠️ Erreur de synchronisation du tag ${type} vers OneSignal :`, e);
         }
-        
-        // Sauvegarde locale
-        state.notifications[type] = checkbox.checked;
-        saveState();
-
-        // Envoi de la préférence à OneSignal pour le ciblage automatique
-        OneSignal.User.addTag(type, checkbox.checked ? "true" : "false");
     });
 }
 
-// Helper pour synchroniser tous les paramètres d'un coup
+// Helper pour synchroniser tous les paramètres d'un coup (Appelé après autorisation)
 function syncAllOneSignalTags(OneSignal) {
-    const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
-    const tags = {};
-    types.forEach(type => {
-        tags[type] = state.notifications[type] ? "true" : "false";
-    });
-    OneSignal.User.addTags(tags);
+    try {
+        const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
+        const tags = {};
+        types.forEach(type => {
+            tags[type] = state.notifications[type] ? "true" : "false";
+        });
+        OneSignal.User.addTags(tags);
+        console.log("📡 Tous les tags ont été envoyés avec succès à OneSignal :", tags);
+    } catch (e) {
+        console.error("⚠️ Erreur lors de l'envoi global des tags à OneSignal :", e);
+    }
 }
+
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
 const dayMap = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]; 
 const dayNamesFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -291,9 +346,6 @@ function saveWeekSchedule(e) {
     saveState(); 
     closeModal('week-modal'); 
     renderAll();
-    
-    // On met à jour les serveurs Cloud pour les nouveaux horaires de cours
-    syncNotificationsWithCloud();
 }
 function updateSchoolDisplay() {
     const now = new Date(); const currentDay = now.getDay(); const currentMins = now.getHours() * 60 + now.getMinutes();
