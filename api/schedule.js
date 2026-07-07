@@ -1,60 +1,14 @@
 // Fonction Serverless Vercel Node.js
-export default async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Méthode non autorisée. Utilisez POST.' });
-    }
+// ⚠️ CE FICHIER EST OBSOLÈTE ET DOIT ÊTRE SUPPRIMÉ DANS VOTRE REPOSITORY ⚠️
+// Explication : Dans OneSignal v16, l'envoi des "Tags" (pour dire si l'utilisateur veut le sport, les objectifs, etc) 
+// doit se faire directement depuis le navigateur du client via "OneSignal.User.addTag()" (comme je l'ai configuré dans le nouveau script.js).
+// Demander à un serveur de faire cela est redondant, plus lent, et source d'erreurs (désynchronisation du SubscriptionId).
 
-    const { subscriptionId, settings, schedule, timezoneStr } = req.body;
-
-    if (!subscriptionId) {
-        return res.status(400).json({ error: 'subscriptionId manquant' });
-    }
-
-    // Récupérer vos clés API sécurisées depuis l'environnement Vercel
-    const APP_ID = "e20173c0-a951-4b0c-8db4-1c9dcac7969e"; // Public
-    const REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY; // Secret
-
-    if (!REST_API_KEY) {
-        console.error("Erreur: Clé API Manquante sur Vercel");
-        return res.status(500).json({ error: 'Configuration serveur incomplète.' });
-    }
-
-    // Pour implémenter efficacement les alertes avec OneSignal sans surcharger le serveur avec des boucles,
-    // l'approche professionnelle consiste à injecter des "Tags" (Étiquettes) dynamiques sur l'utilisateur
-    // en fonction de ses paramètres (sport: true, etc.)
+export default function handler(req, res) {
+    console.warn("⚠️ Avertissement : Le fichier /api/schedule.js est déprécié. La logique de Tags est maintenant directement pilotée côté client dans script.js pour une fiabilité à 100%. Supprimez ce fichier de votre projet GitHub.");
     
-    // On met à jour le profil de l'utilisateur sur OneSignal avec les "Tags" (Préférences locales)
-    // Les alertes récurrentes pourront être ensuite pilotées via les "Journeys" de OneSignal en fonction de ces tags.
-    const tagsPayload = {
-        app_id: APP_ID,
-        tags: {
-            notif_sport: settings.sport ? 'true' : 'false',
-            notif_school: settings.school ? 'true' : 'false',
-            notif_goals: settings.goals ? 'true' : 'false',
-            notif_streak: settings.streak ? 'true' : 'false',
-            notif_motivation: settings.motivation ? 'true' : 'false',
-        }
-    };
-
-    try {
-        const updateTagsResponse = await fetch(`https://api.onesignal.com/apps/${APP_ID}/users/by/subscriptions/${subscriptionId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Basic ${REST_API_KEY}`
-            },
-            body: JSON.stringify(tagsPayload)
-        });
-
-        if (updateTagsResponse.ok) {
-            return res.status(200).json({ success: true, message: 'Tags synchronisés sur OneSignal avec succès.' });
-        } else {
-            const err = await updateTagsResponse.json();
-            console.error("Erreur OneSignal:", err);
-            return res.status(400).json({ error: 'Échec de synchronisation OneSignal' });
-        }
-    } catch (error) {
-        console.error("Erreur serveur interne:", error);
-        return res.status(500).json({ error: 'Erreur Serveur' });
-    }
+    return res.status(410).json({ 
+        error: 'Cette API est obsolète.', 
+        message: 'L\'ajout des tags OneSignal se fait désormais directement côté Client (Navigateur) via OneSignal.User.addTag(). Veuillez supprimer le fichier api/schedule.js pour nettoyer votre base de code.' 
+    });
 }
