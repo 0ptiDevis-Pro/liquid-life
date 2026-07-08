@@ -25,11 +25,23 @@
                     if (typeof updateNotificationAuthUI === "function") {
                         updateNotificationAuthUI();
                     }
+                    if (permission && typeof syncNotificationsWithServer === "function") {
+                        syncNotificationsWithServer();
+                    }
                 });
             } catch (error) {
                 console.error("⚠️ Erreur OneSignal : Échec critique de l'initialisation du SDK dans le HTML.", error);
             }
         });
+
+        // Enregistrement explicite et unique du Service Worker unifié pour la PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/OneSignalSDKWorker.js')
+                    .then(reg => console.log('🚀 Service Worker Unifié LiquidLife enregistré avec succès !', reg))
+                    .catch(err => console.error('❌ Échec d\'enregistrement du Service Worker unifié :', err));
+            });
+        }
     </script>
 </head>
 <body>
