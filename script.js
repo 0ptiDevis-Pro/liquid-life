@@ -24,13 +24,41 @@ const quotes = [
     "Ton futur se construit sur ce que tu imposes à ta journée."
 ];
 
+// ================= FONCTION DE SYNCHRONISATION SERVEUR H-30 ================= */
+async function syncNotificationsWithServer() {
+    try {
+        if (typeof window.OneSignalDeferred !== "undefined" && window.OneSignal && window.OneSignal.User && window.OneSignal.User.pushSubscription) {
+            const subscriptionId = window.OneSignal.User.pushSubscription.id;
+            if (subscriptionId) {
+                const payload = {
+                    subscriptionId: subscriptionId,
+                    settings: state.notifications,
+                    weekSchedule: state.weekSchedule,
+                    timezoneStr: Intl.DateTimeFormat().resolvedOptions().timeZone
+                };
+                
+                const response = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                console.log("🔄 Synchronisation des notifications et cours réussie :", data);
+            } else {
+                console.warn("⚠️ ID d'abonnement OneSignal indisponible pour le moment.");
+            }
+        }
+    } catch (e) {
+        console.error("❌ Échec de la synchronisation des notifications avec l'API Serverless :", e);
+    }
+}
+
 // ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initUserName();
     checkAppDay();
     initNotificationsUI();
-    registerServiceWorker();
     renderAll();
 });
 
@@ -44,6 +72,9 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
     localStorage.setItem('ll_qrcodes', JSON.stringify(state.qrcodes));
     localStorage.setItem('ll_notifications', JSON.stringify(state.notifications));
+    
+    // Déclenchement de la synchronisation asynchrone des cours H-30 et tags
+    syncNotificationsWithServer();
 }
 
 function getTodayString() {
@@ -187,16 +218,6 @@ function importData(event) {
 
 // ================= NOTIFICATIONS CLOUD (ONESIGNAL) ================= */
 
-function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-        try {
-            navigator.serviceWorker.register('sw.js').catch(err => console.error('⚠️ Erreur SW local:', err));
-        } catch (e) {
-            console.error("⚠️ Erreur inattendue lors de l'enregistrement du SW.", e);
-        }
-    }
-}
-
 // Met à jour l'interface en fonction des droits de OneSignal et des contraintes HTTP
 async function updateNotificationAuthUI() {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
@@ -301,10 +322,11 @@ function toggleNotificationSetting(type) {
             state.notifications[type] = checkbox.checked;
             saveState();
 
-            // Envoi de la préférence à OneSignal pour le ciblage automatique
+            // Envoi de la préférence à OneSignal pour le ciblage automatique via tag prefixé
+            const tagKey = `notif_${type}`;
             const tagValue = checkbox.checked ? "true" : "false";
-            OneSignal.User.addTag(type, tagValue);
-            console.log(`📡 Tag OneSignal synchronisé : [${type}] -> ${tagValue}`);
+            OneSignal.User.addTag(tagKey, tagValue);
+            console.log(`📡 Tag OneSignal synchronisé : [${tagKey}] -> ${tagValue}`);
         } catch (e) {
             console.error(`⚠️ Erreur de synchronisation du tag ${type} vers OneSignal :`, e);
         }
@@ -317,7 +339,7 @@ function syncAllOneSignalTags(OneSignal) {
         const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
         const tags = {};
         types.forEach(type => {
-            tags[type] = state.notifications[type] ? "true" : "false";
+            tags[`notif_${type}`] = state.notifications[type] ? "true" : "false";
         });
         OneSignal.User.addTags(tags);
         console.log("📡 Tous les tags ont été envoyés avec succès à OneSignal :", tags);
