@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // Sécurité pour vérifier que la requête provient bien du planificateur Vercel
+  // Sécurité pour vérifier que la requête provient bien du planificateur Vercel (Crons)
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     console.error("🔒 Auth échouée sur Vercel : Jeton Cron Invalide");
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   let title = "";
   let message = "";
 
-  // Définition des textes selon l'heure/le type de rappel
+  // Définition des textes premium selon le type de rappel planifié
   switch (type) {
     case 'sport':
       title = "💪 Mission Sport !";
@@ -39,7 +39,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Appel sécurisé à l'API de OneSignal
+    // Validation de la configuration d'environnement Vercel
+    if (!process.env.ONESIGNAL_APP_ID || !process.env.ONESIGNAL_REST_API_KEY) {
+      console.error("❌ Configuration OneSignal manquante dans l'environnement Vercel");
+      return res.status(500).json({ error: "Configuration serveur incomplète." });
+    }
+
+    // Alignement parfait des étiquettes (Tags) avec le format enregistré côté client (notif_${type})
+    const targetTagKey = `notif_${type}`;
+
+    // Appel à l'API OneSignal pour envoyer la notification ciblée par étiquette
     const response = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
@@ -50,9 +59,9 @@ export default async function handler(req, res) {
         app_id: process.env.ONESIGNAL_APP_ID,
         headings: { fr: title },
         contents: { fr: message },
-        // On cible uniquement les appareils dont le tag de préférence est égal à "true"
+        // Ciblage des appareils dont le tag de préférence est explicitement égal à "true"
         filters: [
-          { field: "tag", key: type, relation: "=", value: "true" }
+          { field: "tag", key: targetTagKey, relation: "=", value: "true" }
         ]
       })
     });
@@ -63,10 +72,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, data });
     }
     
-    console.log(`✅ Push [${type}] envoyé avec succès :`, data);
+    console.log(`✅ Push [${type}] envoyé avec succès via l'étiquette [${targetTagKey}] :`, data);
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error("❌ Erreur critique Serverless lors de l'envoi du Push :", error);
-    return res.status(500).json({ success: false, error: error.message });
+    console.error("❌ Erreur serveur interne dans send-push :", error);
+    return res.status(500).json({ error: error.message });
   }
 }
