@@ -29,24 +29,56 @@ async function syncNotificationsWithServer() {
     try {
         if (typeof window.OneSignalDeferred !== "undefined" && window.OneSignal && window.OneSignal.User && window.OneSignal.User.pushSubscription) {
             const subscriptionId = window.OneSignal.User.pushSubscription.id;
-            if (subscriptionId) {
-                const payload = {
-                    subscriptionId: subscriptionId,
-                    settings: state.notifications,
-                    weekSchedule: state.weekSchedule,
-                    timezoneStr: Intl.DateTimeFormat().resolvedOptions().timeZone
-                };
-                
-                const response = await fetch('/api/schedule', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                console.log("🔄 Synchronisation des notifications et cours réussie :", data);
-            } else {
+            if (!subscriptionId) {
                 console.warn("⚠️ ID d'abonnement OneSignal indisponible pour le moment.");
+                return;
             }
+
+            let scheduledClasses = [];
+
+            // Calcul dynamique des dates H-30 min si les notifs school sont activées et l'emploi du temps existe
+            if (state.notifications.school && state.weekSchedule && Object.keys(state.weekSchedule).length > 0) {
+                const now = new Date();
+                const currentDayIndex = now.getDay(); // 0 = Dimanche, 1 = Lundi...
+                
+                // Vérifier l'emploi du temps sur une fenêtre glissante de 7 jours
+                for (let i = 0; i < 7; i++) {
+                    const checkDayIndex = (currentDayIndex + i) % 7;
+                    
+                    if (state.weekSchedule[checkDayIndex] && state.weekSchedule[checkDayIndex].start) {
+                        const [startHour, startMin] = state.weekSchedule[checkDayIndex].start.split(':').map(Number);
+                        
+                        // Création de la date absolue du cours
+                        let classDate = new Date();
+                        classDate.setDate(now.getDate() + i);
+                        classDate.setHours(startHour, startMin, 0, 0);
+                        
+                        // Soustraction mathématique de 30 minutes
+                        let alertDate = new Date(classDate.getTime() - 30 * 60000);
+                        
+                        // Ne planifier que si l'heure d'alerte calculée est strictement dans le futur
+                        if (alertDate > now) {
+                            scheduledClasses.push({
+                                courseTime: state.weekSchedule[checkDayIndex].start,
+                                sendAfter: alertDate.toISOString() // Format universel interprété correctement par OneSignal
+                            });
+                        }
+                    }
+                }
+            }
+
+            const payload = {
+                subscriptionId: subscriptionId,
+                scheduledClasses: scheduledClasses
+            };
+            
+            const response = await fetch('/api/schedule-school', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            console.log("🔄 Synchronisation des notifications H-30 réussie :", data);
         }
     } catch (e) {
         console.error("❌ Échec de la synchronisation des notifications avec l'API Serverless :", e);
@@ -222,7 +254,6 @@ function importData(event) {
 async function updateNotificationAuthUI() {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
     
-    // 1. Diagnostic de sécurité strict
     if (!isSecure) {
         console.error("❌ Erreur Sécurité : OneSignal nécessite impérativement un contexte HTTPS sécurisé pour s'activer.");
         const statusText = document.getElementById('notif-auth-status');
@@ -235,7 +266,6 @@ async function updateNotificationAuthUI() {
         return;
     }
 
-    // 2. Vérification OneSignal asynchrone sécurisée
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
         try {
@@ -295,6 +325,7 @@ function requestCloudNotificationPermission() {
             
             updateNotificationAuthUI();
             syncAllOneSignalTags(OneSignal);
+            syncNotificationsWithServer();
         } catch (err) {
             console.error("⚠️ Erreur critique lors de la demande d'autorisation OneSignal:", err);
             showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
@@ -320,9 +351,9 @@ function toggleNotificationSetting(type) {
             
             // Sauvegarde locale
             state.notifications[type] = checkbox.checked;
-            saveState();
+            saveState(); // Appelle indirectement syncNotificationsWithServer pour mettre à jour la planification
 
-            // Envoi de la préférence à OneSignal pour le ciblage automatique via tag prefixé
+            // Envoi de la préférence à OneSignal pour le ciblage par crons standard
             const tagKey = `notif_${type}`;
             const tagValue = checkbox.checked ? "true" : "false";
             OneSignal.User.addTag(tagKey, tagValue);
