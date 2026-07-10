@@ -190,25 +190,25 @@ function importData(event) {
 // ================= NOTIFICATIONS CLOUD (ONESIGNAL) ================= */
 
 function updateNotificationAuthUI() {
-    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     
+    const statusText = document.getElementById('notif-auth-status');
+    const promptBtn = document.getElementById('btn-request-notif');
+
     if (!isSecure) {
-        const statusText = document.getElementById('notif-auth-status');
-        const promptDiv = document.getElementById('btn-request-notif');
         if (statusText) {
-            statusText.innerText = "⚠️ HTTPS Requis (Déploie sur Vercel)";
+            statusText.innerText = "⚠️ HTTPS Requis pour les notifications";
             statusText.style.color = "var(--error-red)";
         }
-        if (promptDiv) promptDiv.style.display = "none";
+        if (promptBtn) promptBtn.style.display = "none";
         return;
     }
 
     window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
+    window.OneSignalDeferred.push(function(OneSignal) {
         try {
-            const hasPermission = await OneSignal.Notifications.permission;
-            const statusText = document.getElementById('notif-auth-status');
-            const promptBtn = document.getElementById('btn-request-notif');
+            // BUG CORRIGÉ : Dans le SDK v16, `permission` est un booléen simple (sans await).
+            const hasPermission = OneSignal.Notifications.permission;
             
             if (hasPermission) {
                 if (statusText) {
@@ -240,26 +240,27 @@ function initNotificationsUI() {
     updateNotificationAuthUI();
 }
 
-// BUG 1 CORRIGÉ : On appelle directement l'API de permission pour éviter le blocage du navigateur
-async function requestCloudNotificationPermission() {
-    try {
-        if (!window.OneSignal) {
-            showCustomAlert("Erreur", "OneSignal n'est pas encore initialisé. Recharge la page.");
-            return;
+// BUG CORRIGÉ : Appel direct pour éviter le blocage natif de la popup par le navigateur
+function requestCloudNotificationPermission() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            // Force l'affichage de la popup native
+            await OneSignal.Notifications.requestPermission();
+            
+            // On revérifie la valeur booléenne après l'interaction de l'utilisateur
+            if (OneSignal.Notifications.permission) {
+                showCustomAlert("Succès", "Les notifications sont activées !", true);
+                updateNotificationAuthUI();
+                syncAllOneSignalTags();
+            } else {
+                showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres de votre navigateur (Cadenas dans l'URL).");
+            }
+        } catch (err) {
+            console.error("Erreur demande autorisation OneSignal:", err);
+            showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
         }
-        const permission = await window.OneSignal.Notifications.requestPermission();
-        
-        if (permission) {
-            showCustomAlert("Succès", "Les notifications sont activées !", true);
-            updateNotificationAuthUI();
-            syncAllOneSignalTags();
-        } else {
-            showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres du navigateur.");
-        }
-    } catch (err) {
-        console.error("Erreur demande autorisation OneSignal:", err);
-        showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
-    }
+    });
 }
 
 function toggleNotificationSetting(type) {
@@ -267,8 +268,8 @@ function toggleNotificationSetting(type) {
     if (!checkbox) return;
 
     window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
-        const hasPermission = await OneSignal.Notifications.permission;
+    window.OneSignalDeferred.push(function(OneSignal) {
+        const hasPermission = OneSignal.Notifications.permission;
         if (!hasPermission) {
             checkbox.checked = false;
             showCustomAlert("Attention", "Active d'abord les Notifications Cloud avec le bouton ci-dessus !");
@@ -283,7 +284,7 @@ function toggleNotificationSetting(type) {
         OneSignal.User.addTag(tagKey, tagValue);
         console.log(`📡 Tag OneSignal mis à jour : [${tagKey}] -> ${tagValue}`);
 
-        // Si l'utilisateur active l'option Ecole, on resynchronise immédiatement l'agenda
+        // Si l'utilisateur active l'option Ecole, on synchronise l'agenda
         if (type === 'school' && checkbox.checked) {
             syncSchoolScheduleWithOneSignal();
         }
@@ -305,7 +306,6 @@ function syncAllOneSignalTags() {
     });
 }
 
-// BUG 2 CORRIGÉ : Calcul des H-30min côté client et envoi à l'API unique
 async function syncSchoolScheduleWithOneSignal() {
     if (!state.notifications.school || Object.keys(state.weekSchedule).length === 0) return;
 
