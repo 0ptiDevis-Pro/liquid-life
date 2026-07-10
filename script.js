@@ -8,7 +8,7 @@ let state = {
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
-    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, motivation: false, goals: false, streak: false }
+    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, motivation: false, goals: false, streak: false }
 };
 
 let pendingDelete = { type: null, index: null }; 
@@ -101,7 +101,7 @@ function executeFullReset() {
     state = {
         userName: currentName, streak: 0, lastMissionDate: "", currentMission: "15 pompes",
         weekSchedule: {}, workoutGenerated: null, goals: [], qrcodes: [],
-        notifications: { sport: false, motivation: false, goals: false, streak: false }
+        notifications: { sport: false, school: false, motivation: false, goals: false, streak: false }
     };
     saveState();
     syncAllOneSignalTags(); 
@@ -230,7 +230,7 @@ function updateNotificationAuthUI() {
 }
 
 function initNotificationsUI() {
-    const types = ['sport', 'motivation', 'goals', 'streak'];
+    const types = ['sport', 'school', 'motivation', 'goals', 'streak'];
     types.forEach(type => {
         const checkbox = document.getElementById(`notif-${type}`);
         if (checkbox) {
@@ -240,24 +240,26 @@ function initNotificationsUI() {
     updateNotificationAuthUI();
 }
 
-function requestCloudNotificationPermission() {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
-        try {
-            const permission = await OneSignal.Notifications.requestPermission();
-            
-            if (permission) {
-                showCustomAlert("Succès", "Les notifications sont activées !", true);
-                updateNotificationAuthUI();
-                syncAllOneSignalTags();
-            } else {
-                showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres du navigateur.");
-            }
-        } catch (err) {
-            console.error("Erreur demande autorisation OneSignal:", err);
-            showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
+// BUG 1 CORRIGÉ : On appelle directement l'API de permission pour éviter le blocage du navigateur
+async function requestCloudNotificationPermission() {
+    try {
+        if (!window.OneSignal) {
+            showCustomAlert("Erreur", "OneSignal n'est pas encore initialisé. Recharge la page.");
+            return;
         }
-    });
+        const permission = await window.OneSignal.Notifications.requestPermission();
+        
+        if (permission) {
+            showCustomAlert("Succès", "Les notifications sont activées !", true);
+            updateNotificationAuthUI();
+            syncAllOneSignalTags();
+        } else {
+            showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres du navigateur.");
+        }
+    } catch (err) {
+        console.error("Erreur demande autorisation OneSignal:", err);
+        showCustomAlert("Erreur", "Impossible de demander l'accès aux notifications.");
+    }
 }
 
 function toggleNotificationSetting(type) {
@@ -280,6 +282,11 @@ function toggleNotificationSetting(type) {
         const tagValue = checkbox.checked ? "true" : "false";
         OneSignal.User.addTag(tagKey, tagValue);
         console.log(`📡 Tag OneSignal mis à jour : [${tagKey}] -> ${tagValue}`);
+
+        // Si l'utilisateur active l'option Ecole, on resynchronise immédiatement l'agenda
+        if (type === 'school' && checkbox.checked) {
+            syncSchoolScheduleWithOneSignal();
+        }
     });
 }
 
@@ -288,6 +295,7 @@ function syncAllOneSignalTags() {
     window.OneSignalDeferred.push(function(OneSignal) {
         const tagsToSync = {
             notif_sport: state.notifications.sport ? "true" : "false",
+            notif_school: state.notifications.school ? "true" : "false",
             notif_motivation: state.notifications.motivation ? "true" : "false",
             notif_goals: state.notifications.goals ? "true" : "false",
             notif_streak: state.notifications.streak ? "true" : "false"
@@ -295,6 +303,54 @@ function syncAllOneSignalTags() {
         OneSignal.User.addTags(tagsToSync);
         console.log("📡 Tags globaux synchronisés avec OneSignal :", tagsToSync);
     });
+}
+
+// BUG 2 CORRIGÉ : Calcul des H-30min côté client et envoi à l'API unique
+async function syncSchoolScheduleWithOneSignal() {
+    if (!state.notifications.school || Object.keys(state.weekSchedule).length === 0) return;
+
+    try {
+        if (!window.OneSignal || !window.OneSignal.User || !window.OneSignal.User.pushSubscription) return;
+        const subscriptionId = window.OneSignal.User.pushSubscription.id;
+        if (!subscriptionId) return;
+
+        const scheduledClasses = [];
+        const now = new Date();
+        const currentDayIndex = now.getDay();
+
+        // Calcul des alertes H-30 pour les 7 prochains jours
+        for (let i = 0; i < 7; i++) {
+            const checkDayIndex = (currentDayIndex + i) % 7;
+            if (state.weekSchedule[checkDayIndex] && state.weekSchedule[checkDayIndex].start) {
+                const [startHour, startMin] = state.weekSchedule[checkDayIndex].start.split(':').map(Number);
+                let classDate = new Date();
+                classDate.setDate(now.getDate() + i);
+                classDate.setHours(startHour, startMin, 0, 0);
+                
+                // Soustraction de 30 minutes
+                let alertDate = new Date(classDate.getTime() - 30 * 60000);
+                
+                // On n'envoie au serveur que les dates futures
+                if (alertDate > now) {
+                    scheduledClasses.push({
+                        courseTime: state.weekSchedule[checkDayIndex].start,
+                        sendAfter: alertDate.toISOString()
+                    });
+                }
+            }
+        }
+
+        if (scheduledClasses.length > 0) {
+            await fetch('/api/send-push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscriptionId, scheduledClasses })
+            });
+            console.log("✅ Synchro H-30 envoyée au serveur.");
+        }
+    } catch (e) {
+        console.error("❌ Échec de la synchronisation des cours H-30 :", e);
+    }
 }
 
 // ================= EMPLOI DU TEMPS INTELLIGENT ================= */
@@ -318,6 +374,9 @@ function saveWeekSchedule(e) {
     saveState(); 
     closeModal('week-modal'); 
     renderAll();
+
+    // Au moment de sauvegarder, on planifie les alertes H-30min
+    syncSchoolScheduleWithOneSignal();
 }
 
 function updateSchoolDisplay() {
