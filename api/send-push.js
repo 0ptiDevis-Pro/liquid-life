@@ -34,8 +34,9 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               app_id: APP_ID,
               include_subscription_ids: [subscriptionId],
-              headings: { fr: "📚 Début des cours bientôt !" },
-              contents: { fr: `Tes cours commencent dans 30 minutes (à ${course.courseTime}). Prépare-toi ! ⚡` },
+              // BUG CORRIGÉ : OneSignal EXIGE la clé "en" en fallback par défaut, sinon il rejette l'appel.
+              headings: { en: "📚 Début des cours bientôt !", fr: "📚 Début des cours bientôt !" },
+              contents: { en: `Tes cours commencent dans 30 minutes (à ${course.courseTime}). Prépare-toi ! ⚡`, fr: `Tes cours commencent dans 30 minutes (à ${course.courseTime}). Prépare-toi ! ⚡` },
               send_after: course.sendAfter // Heure ISO exacte calculée par le client
             })
           });
@@ -60,19 +61,21 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Non autorisé" });
   }
 
+  // BUG CORRIGÉ : Le paramètre delivery_time_of_day exige un format spécifique (AM/PM)
   const campaigns = [
-    { tagKey: 'notif_sport', deliveryTime: '09:00', title: '💪 Mission Sport !', message: 'Prêt à dominer ta journée ? Ta quête quotidienne t\'attend sur LiquidLife ! ⚡' },
-    { tagKey: 'notif_motivation', deliveryTime: '13:00', title: '✨ Boost de Motivation', message: 'Le succès n\'est pas un accident, c\'est le résultat d\'une routine implacable. Reste focus ! 🔥' },
-    { tagKey: 'notif_goals', deliveryTime: '19:00', title: '🎯 Tes Objectifs', message: 'Prends quelques minutes ce soir pour faire le point sur tes rêves et avancer concrètement.' },
-    { tagKey: 'notif_streak', deliveryTime: '20:00', title: '⚠️ Sauve ton Feu Sacré !', message: 'Il est 20h00 ! Pense à valider ta mission quotidienne avant minuit pour conserver ta série.' }
+    { tagKey: 'notif_sport', deliveryTime: '9:00AM', title: '💪 Mission Sport !', message: 'Prêt à dominer ta journée ? Ta quête quotidienne t\'attend sur LiquidLife ! ⚡' },
+    { tagKey: 'notif_motivation', deliveryTime: '1:00PM', title: '✨ Boost de Motivation', message: 'Le succès n\'est pas un accident, c\'est le résultat d\'une routine implacable. Reste focus ! 🔥' },
+    { tagKey: 'notif_goals', deliveryTime: '7:00PM', title: '🎯 Tes Objectifs', message: 'Prends quelques minutes ce soir pour faire le point sur tes rêves et avancer concrètement.' },
+    { tagKey: 'notif_streak', deliveryTime: '8:00PM', title: '⚠️ Sauve ton Feu Sacré !', message: 'Il est 20h00 ! Pense à valider ta mission quotidienne avant minuit pour conserver ta série.' }
   ];
 
   try {
     const pushPromises = campaigns.map(async (campaign) => {
       const payload = {
         app_id: APP_ID,
-        headings: { fr: campaign.title },
-        contents: { fr: campaign.message },
+        // Toujours doubler la langue avec "en"
+        headings: { en: campaign.title, fr: campaign.title },
+        contents: { en: campaign.message, fr: campaign.message },
         filters: [{ field: "tag", key: campaign.tagKey, relation: "=", value: "true" }],
         delayed_option: "timezone",
         delivery_time_of_day: campaign.deliveryTime
