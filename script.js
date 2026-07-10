@@ -8,8 +8,7 @@ let state = {
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
-    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, goals: false, streak: false, motivation: false },
-    scheduledNotifIds: JSON.parse(localStorage.getItem('ll_scheduledNotifIds')) || [] // NOUVEAU: Suivi des IDs de planification
+    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, motivation: false, goals: false, streak: false }
 };
 
 let pendingDelete = { type: null, index: null }; 
@@ -24,55 +23,6 @@ const quotes = [
     "Sois régulier et structuré dans ta vie pour être puissant dans tes projets.",
     "Ton futur se construit sur ce que tu imposes à ta journée."
 ];
-
-// ================= FONCTION MASTER : SYNCHRONISATION PLANIFICATION 7 JOURS ================= */
-async function syncAllNotificationsWithOneSignal() {
-    try {
-        if (typeof window.OneSignalDeferred === "undefined" || !window.OneSignal || !window.OneSignal.User || !window.OneSignal.User.pushSubscription) {
-            console.warn("⚠️ SDK OneSignal non prêt ou non instancié. Synchro annulée.");
-            return;
-        }
-
-        const hasPermission = window.OneSignal.Notifications.permission;
-        if (!hasPermission) {
-            console.log("🔒 Pas de permission de notification, synchro ignorée.");
-            return;
-        }
-
-        const subscriptionId = window.OneSignal.User.pushSubscription.id;
-        if (!subscriptionId) {
-            console.warn("⚠️ ID d'abonnement OneSignal indisponible pour l'instant.");
-            return;
-        }
-
-        const payload = {
-            subscriptionId: subscriptionId,
-            oldNotificationIds: state.scheduledNotifIds, // Pour que le serveur les supprime
-            settings: state.notifications,
-            schedule: state.weekSchedule,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris'
-        };
-
-        const response = await fetch('/api/sync-notifications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-            // On sauvegarde silencieusement les nouvelles IDs retournées par le serveur
-            state.scheduledNotifIds = data.scheduledIds || [];
-            localStorage.setItem('ll_scheduledNotifIds', JSON.stringify(state.scheduledNotifIds));
-            console.log("✅ Synchro OneSignal 7-Jours réussie. Nouvelles IDs capturées:", state.scheduledNotifIds);
-        } else {
-            console.error("❌ Le serveur a refusé la synchro:", data);
-        }
-    } catch (err) {
-        console.error("❌ Erreur réseau lors de la synchro OneSignal :", err);
-    }
-}
 
 // ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
@@ -93,7 +43,6 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
     localStorage.setItem('ll_qrcodes', JSON.stringify(state.qrcodes));
     localStorage.setItem('ll_notifications', JSON.stringify(state.notifications));
-    localStorage.setItem('ll_scheduledNotifIds', JSON.stringify(state.scheduledNotifIds));
 }
 
 function getTodayString() {
@@ -152,11 +101,10 @@ function executeFullReset() {
     state = {
         userName: currentName, streak: 0, lastMissionDate: "", currentMission: "15 pompes",
         weekSchedule: {}, workoutGenerated: null, goals: [], qrcodes: [],
-        notifications: { sport: false, school: false, goals: false, streak: false, motivation: false },
-        scheduledNotifIds: []
+        notifications: { sport: false, motivation: false, goals: false, streak: false }
     };
     saveState();
-    syncAllNotificationsWithOneSignal(); // Va écraser les anciennes notifs sur OneSignal
+    syncAllOneSignalTags(); 
     initNotificationsUI();
     renderAll();
     closeModal('reset-confirm-modal');
@@ -230,7 +178,7 @@ function importData(event) {
             const importedState = JSON.parse(e.target.result);
             if(importedState) {
                 state = importedState; saveState(); 
-                syncAllNotificationsWithOneSignal(); // Rétablit le planning OneSignal
+                syncAllOneSignalTags();
                 initNotificationsUI(); renderAll();
                 showCustomAlert("Succès", "Sauvegarde restaurée avec succès ! ✨", true);
             }
@@ -241,7 +189,6 @@ function importData(event) {
 
 // ================= NOTIFICATIONS CLOUD (ONESIGNAL) ================= */
 
-// Met à jour l'interface en fonction des droits de OneSignal
 function updateNotificationAuthUI() {
     const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
     
@@ -282,9 +229,8 @@ function updateNotificationAuthUI() {
     });
 }
 
-// Appelé au chargement pour cocher les bonnes cases selon le LocalStorage
 function initNotificationsUI() {
-    const types = ['sport', 'school', 'goals', 'streak', 'motivation'];
+    const types = ['sport', 'motivation', 'goals', 'streak'];
     types.forEach(type => {
         const checkbox = document.getElementById(`notif-${type}`);
         if (checkbox) {
@@ -294,7 +240,6 @@ function initNotificationsUI() {
     updateNotificationAuthUI();
 }
 
-// Demande d'autorisation au clic sur le gros bouton
 function requestCloudNotificationPermission() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
@@ -304,8 +249,7 @@ function requestCloudNotificationPermission() {
             if (permission) {
                 showCustomAlert("Succès", "Les notifications sont activées !", true);
                 updateNotificationAuthUI();
-                // Premier déclenchement global
-                syncAllNotificationsWithOneSignal();
+                syncAllOneSignalTags();
             } else {
                 showCustomAlert("Refusé", "Veuillez autoriser les notifications dans les paramètres du navigateur.");
             }
@@ -316,7 +260,6 @@ function requestCloudNotificationPermission() {
     });
 }
 
-// Appelé au changement des interrupteurs (Toggles)
 function toggleNotificationSetting(type) {
     const checkbox = document.getElementById(`notif-${type}`);
     if (!checkbox) return;
@@ -333,8 +276,24 @@ function toggleNotificationSetting(type) {
         state.notifications[type] = checkbox.checked;
         saveState();
         
-        // C'est ici la clé : On re-planifie dynamiquement l'intégralité des 7 prochains jours
-        syncAllNotificationsWithOneSignal();
+        const tagKey = `notif_${type}`;
+        const tagValue = checkbox.checked ? "true" : "false";
+        OneSignal.User.addTag(tagKey, tagValue);
+        console.log(`📡 Tag OneSignal mis à jour : [${tagKey}] -> ${tagValue}`);
+    });
+}
+
+function syncAllOneSignalTags() {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(function(OneSignal) {
+        const tagsToSync = {
+            notif_sport: state.notifications.sport ? "true" : "false",
+            notif_motivation: state.notifications.motivation ? "true" : "false",
+            notif_goals: state.notifications.goals ? "true" : "false",
+            notif_streak: state.notifications.streak ? "true" : "false"
+        };
+        OneSignal.User.addTags(tagsToSync);
+        console.log("📡 Tags globaux synchronisés avec OneSignal :", tagsToSync);
     });
 }
 
@@ -359,9 +318,6 @@ function saveWeekSchedule(e) {
     saveState(); 
     closeModal('week-modal'); 
     renderAll();
-    
-    // Déclenchement impératif : Replanification intégrale incluant les nouveaux cours
-    syncAllNotificationsWithOneSignal();
 }
 
 function updateSchoolDisplay() {
