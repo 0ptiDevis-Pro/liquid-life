@@ -17,7 +17,6 @@
                     appId: "e20173c0-a951-4b0c-8db4-1c9dcac7969e",
                     safari_web_id: "web.onesignal.auto.45e32f52-047f-48ea-8b6f-5a9d2fcde2db",
                     notifyButton: { enable: false },
-                    // Force OneSignal à utiliser notre Service Worker unifié
                     serviceWorkerParam: { scope: '/' },
                     serviceWorkerPath: 'sw.js'
                 });
@@ -104,21 +103,28 @@
                     
                     <div class="notification-list">
                         <div class="notif-row">
-                            <span>Quêtes de sport (08h00)</span>
+                            <span>Quêtes de sport (09h00)</span>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="notif-sport" onchange="toggleNotificationSetting('sport')">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
                         <div class="notif-row">
-                            <span>Motivation (12h00)</span>
+                            <span>Début des cours (H -30min)</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="notif-school" onchange="toggleNotificationSetting('school')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="notif-row">
+                            <span>Motivation (13h00)</span>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="notif-motivation" onchange="toggleNotificationSetting('motivation')">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
                         <div class="notif-row">
-                            <span>Objectifs (18h00)</span>
+                            <span>Objectifs (19h00)</span>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="notif-goals" onchange="toggleNotificationSetting('goals')">
                                 <span class="toggle-slider"></span>
@@ -131,7 +137,7 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
-                        </div>
+                    </div>
                 </div>
 
                 <div class="glass-card">
