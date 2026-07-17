@@ -26,6 +26,32 @@ body {
     min-height: 100vh; overflow-x: hidden;
 }
 
+/* ================= CLASSES UTILITAIRES (STYLE TAILWIND METEO) ================= */
+.weather-bg {
+    background-color: rgba(24, 24, 27, 0.5) !important; /* bg-zinc-900/50 */
+}
+.text-yellow-300 { color: #fde047; }
+.text-zinc-300 { color: #d4d4d8; }
+.text-zinc-400 { color: #a1a1aa; }
+.text-blue-400 { color: #60a5fa; }
+.text-slate-100 { color: #f1f5f9; }
+.drop-shadow-lg { filter: drop-shadow(0 10px 8px rgba(0,0,0,0.04)) drop-shadow(0 4px 3px rgba(0,0,0,0.1)); }
+.opacity-70 { opacity: 0.7; }
+
+.weather-art {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 8px;
+    line-height: 1;
+    letter-spacing: 0;
+    margin: 0;
+    padding: 0;
+}
+.weather-loader {
+    animation: spin 1s linear infinite;
+    width: 24px; height: 24px; color: var(--accent-blue);
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
 /* ================= BACKGROUND ================= */
 .liquid-bg {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -95,7 +121,6 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
 .btn-icon:active { transform: scale(0.85); }
 .btn-icon.danger { color: var(--error-red); }
 
-/* STYLE COEUR FAVORI */
 .btn-icon.favorite {
     color: var(--error-red);
     background: rgba(239, 68, 68, 0.15);
@@ -161,10 +186,14 @@ h3 { font-size: 1.15rem; font-weight: 600; color: #FFF; margin-bottom: 8px;}
     backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%);
     border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--pill-radius);
     padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); z-index: 100;
+    overflow-x: auto;
 }
+/* Scroll invisible pour la nav si besoin sur petits écrans */
+.floating-nav::-webkit-scrollbar { display: none; }
+
 .nav-item {
     background: transparent; border: none; color: #71717A; display: flex; flex-direction: column; align-items: center; gap: 4px;
-    font-size: 0.65rem; font-weight: 600; cursor: pointer; transition: color 0.3s; width: 60px;
+    font-size: 0.65rem; font-weight: 600; cursor: pointer; transition: color 0.3s; min-width: 55px;
 }
 .icon-wrapper { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: transform 0.4s var(--spring-easing), background 0.3s; }
 .nav-item i { width: 20px; height: 20px; transition: color 0.3s; }
