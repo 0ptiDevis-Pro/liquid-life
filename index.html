@@ -31,7 +31,6 @@
             }
         });
 
-        // Enregistrement de l'unique Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
@@ -52,6 +51,19 @@
             </header>
 
             <div class="card-grid">
+                <div class="glass-card interactive-card weather-bg" onclick="switchTab('weather')">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h3 style="margin-bottom: 0;">Météo</h3>
+                            <div id="home-weather-temp" style="font-size: 2.5rem; font-weight: 800; color: #FFF; margin: 4px 0;">--°</div>
+                            <p id="home-weather-sun" class="subtitle" style="font-size: 0.85rem; margin-top:0;">🌅 --:-- | 🌇 --:--</p>
+                        </div>
+                        <div id="home-weather-art" style="margin-top: 5px;">
+                            <i data-lucide="loader" class="weather-loader"></i>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="glass-card interactive-card" onclick="switchTab('school')">
                     <div class="card-icon blue-icon"><i data-lucide="calendar"></i></div>
                     <h3>Emploi du temps</h3>
@@ -156,6 +168,35 @@
             </div>
         </section>
 
+        <section id="tab-weather" class="app-page">
+            <header class="page-header">
+                <h1>Météo du Jour</h1>
+                <p class="subtitle">Analyse et recommandations.</p>
+            </header>
+
+            <div class="glass-card weather-bg text-center" style="margin-bottom: 20px;">
+                <div id="full-weather-art" style="margin: 20px auto; display: flex; justify-content: center; transform: scale(1.3);">
+                    <i data-lucide="loader" class="weather-loader"></i>
+                </div>
+                <div style="display: flex; justify-content: center; align-items: baseline; gap: 15px; margin-top: 30px;">
+                    <div class="subtitle">Min <span id="full-weather-min" style="color:#FFF; font-weight:bold; font-size:1.2rem;">--°</span></div>
+                    <div id="full-weather-avg" style="font-size: 3.5rem; font-weight: 800; color: #FFF;">--°</div>
+                    <div class="subtitle">Max <span id="full-weather-max" style="color:#FFF; font-weight:bold; font-size:1.2rem;">--°</span></div>
+                </div>
+                <div style="display: flex; justify-content: center; gap: 20px; margin-top: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 10px;">
+                    <div>🌅 <span id="full-weather-sunrise">--:--</span></div>
+                    <div>🌇 <span id="full-weather-sunset">--:--</span></div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h3>👕 Recommandation Tenue</h3>
+                <p id="full-weather-cloth" class="subtitle" style="font-size:1.05rem; color:#FFF; margin-top: 10px;">Chargement de l'analyse...</p>
+                <div id="full-weather-addons" style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                    </div>
+            </div>
+        </section>
+
         <section id="tab-school" class="app-page">
             <header class="page-header">
                 <h1>Mon Agenda</h1>
@@ -217,6 +258,10 @@
         <button class="nav-item active" data-tab="home" onclick="switchTab('home')">
             <div class="icon-wrapper"><i data-lucide="home"></i></div>
             <span>Accueil</span>
+        </button>
+        <button class="nav-item" data-tab="weather" onclick="switchTab('weather')">
+            <div class="icon-wrapper"><i data-lucide="cloud-sun"></i></div>
+            <span>Météo</span>
         </button>
         <button class="nav-item" data-tab="school" onclick="switchTab('school')">
             <div class="icon-wrapper"><i data-lucide="graduation-cap"></i></div>
