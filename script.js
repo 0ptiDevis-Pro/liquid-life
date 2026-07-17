@@ -24,12 +24,53 @@ const quotes = [
     "Ton futur se construit sur ce que tu imposes à ta journée."
 ];
 
+// Bibliothèque Pixel Art Météo
+const PIXEL_ART = {
+    soleil: `<pre class="weather-art text-yellow-300 drop-shadow-lg">
+       ██
+   ██ ████ ██
+ ██  ██████  ██
+ ██ ████████ ██
+    ████████
+ ██ ████████ ██
+ ██  ██████  ██
+    ██ ████ ██
+       ██</pre>`,
+    nuage: `<pre class="weather-art text-zinc-300">
+      █████
+   ██████████
+ █████████████
+███████████████
+ █████████████</pre>`,
+    pluie: `<pre class="weather-art"><span class="text-zinc-300">     ███████
+  ███████████
+██████████████</span>
+<span class="text-blue-400">   │ │ │ │
+  │ │ │ │</span></pre>`,
+    orage: `<pre class="weather-art"><span class="text-zinc-400">     ███████
+ ████████████
+██████████████</span>
+    <span class="text-yellow-300">⚡</span>
+   <span class="text-blue-400">│ │</span></pre>`,
+    neige: `<pre class="weather-art text-slate-100">
+      █████
+  ███████████
+██████████████
+ ✳ ✳ ✳ ✳</pre>`,
+    brouillard: `<pre class="weather-art text-zinc-400 opacity-70">
+██████████████
+══════════════
+══════════════
+══════════════</pre>`
+};
+
 // ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
     initUserName();
     checkAppDay();
     initNotificationsUI();
+    fetchWeather(); // NOUVEAU: Appel de l'API Serveur pour la météo
     renderAll();
 });
 
@@ -139,7 +180,10 @@ function switchTab(tabId) {
     document.querySelectorAll('.app-page').forEach(page => page.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     document.getElementById(`tab-${tabId}`).classList.add('active');
-    document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+    
+    const activeNavBtn = document.querySelector(`[data-tab="${tabId}"]`);
+    if(activeNavBtn) activeNavBtn.classList.add('active');
+    
     renderAll();
 }
 
@@ -160,6 +204,48 @@ function renderAll() {
     }
 
     updateHomeGoalSummary(); updateSchoolDisplay(); renderWorkout(); renderGoals(); renderQRCodes(); lucide.createIcons();
+}
+
+// ================= RECUPERATION METEO VIA BACKEND ================= */
+async function fetchWeather() {
+    try {
+        const res = await fetch('/api/weather');
+        if (!res.ok) throw new Error("Backend non accessible");
+        
+        const data = await res.json();
+        
+        // 1. Mise à jour de la carte Accueil
+        document.getElementById('home-weather-temp').innerText = `${data.avgTemp}°`;
+        document.getElementById('home-weather-sun').innerText = `🌅 ${data.sunrise} | 🌇 ${data.sunset}`;
+        document.getElementById('home-weather-art').innerHTML = PIXEL_ART[data.weatherType] || PIXEL_ART['soleil'];
+
+        // 2. Mise à jour de la page entière Météo
+        document.getElementById('full-weather-art').innerHTML = PIXEL_ART[data.weatherType] || PIXEL_ART['soleil'];
+        document.getElementById('full-weather-min').innerText = `${data.minTemp}°`;
+        document.getElementById('full-weather-avg').innerText = `${data.avgTemp}°`;
+        document.getElementById('full-weather-max').innerText = `${data.maxTemp}°`;
+        document.getElementById('full-weather-sunrise').innerText = data.sunrise;
+        document.getElementById('full-weather-sunset').innerText = data.sunset;
+        
+        document.getElementById('full-weather-cloth').innerText = data.tenue;
+        
+        const addonsContainer = document.getElementById('full-weather-addons');
+        addonsContainer.innerHTML = "";
+        data.addons.forEach(addon => {
+            const div = document.createElement('div');
+            div.style.background = "rgba(255,255,255,0.05)";
+            div.style.padding = "10px";
+            div.style.borderRadius = "8px";
+            div.style.color = "#FFF";
+            div.innerText = addon;
+            addonsContainer.appendChild(div);
+        });
+
+    } catch (e) {
+        console.error("Erreur Météo:", e);
+        document.getElementById('home-weather-temp').innerText = "Err";
+        document.getElementById('home-weather-art').innerHTML = "<span style='font-size:24px'>☁️</span>";
+    }
 }
 
 // ================= SAUVEGARDE EXPORT/IMPORT JSON ================= */
@@ -207,7 +293,6 @@ function updateNotificationAuthUI() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(function(OneSignal) {
         try {
-            // BUG CORRIGÉ : Dans le SDK v16, `permission` est un booléen simple (sans await).
             const hasPermission = OneSignal.Notifications.permission;
             
             if (hasPermission) {
@@ -240,15 +325,12 @@ function initNotificationsUI() {
     updateNotificationAuthUI();
 }
 
-// BUG CORRIGÉ : Appel direct pour éviter le blocage natif de la popup par le navigateur
 function requestCloudNotificationPermission() {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     window.OneSignalDeferred.push(async function(OneSignal) {
         try {
-            // Force l'affichage de la popup native
             await OneSignal.Notifications.requestPermission();
             
-            // On revérifie la valeur booléenne après l'interaction de l'utilisateur
             if (OneSignal.Notifications.permission) {
                 showCustomAlert("Succès", "Les notifications sont activées !", true);
                 updateNotificationAuthUI();
@@ -284,7 +366,6 @@ function toggleNotificationSetting(type) {
         OneSignal.User.addTag(tagKey, tagValue);
         console.log(`📡 Tag OneSignal mis à jour : [${tagKey}] -> ${tagValue}`);
 
-        // Si l'utilisateur active l'option Ecole, on synchronise l'agenda
         if (type === 'school' && checkbox.checked) {
             syncSchoolScheduleWithOneSignal();
         }
@@ -318,7 +399,6 @@ async function syncSchoolScheduleWithOneSignal() {
         const now = new Date();
         const currentDayIndex = now.getDay();
 
-        // Calcul des alertes H-30 pour les 7 prochains jours
         for (let i = 0; i < 7; i++) {
             const checkDayIndex = (currentDayIndex + i) % 7;
             if (state.weekSchedule[checkDayIndex] && state.weekSchedule[checkDayIndex].start) {
@@ -327,10 +407,8 @@ async function syncSchoolScheduleWithOneSignal() {
                 classDate.setDate(now.getDate() + i);
                 classDate.setHours(startHour, startMin, 0, 0);
                 
-                // Soustraction de 30 minutes
                 let alertDate = new Date(classDate.getTime() - 30 * 60000);
                 
-                // On n'envoie au serveur que les dates futures
                 if (alertDate > now) {
                     scheduledClasses.push({
                         courseTime: state.weekSchedule[checkDayIndex].start,
@@ -375,7 +453,6 @@ function saveWeekSchedule(e) {
     closeModal('week-modal'); 
     renderAll();
 
-    // Au moment de sauvegarder, on planifie les alertes H-30min
     syncSchoolScheduleWithOneSignal();
 }
 
