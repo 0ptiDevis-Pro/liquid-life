@@ -8,7 +8,8 @@ let state = {
     workoutGenerated: JSON.parse(localStorage.getItem('ll_workout')) || null,
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
-    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, motivation: false, goals: false, streak: false }
+    notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, motivation: false, goals: false, streak: false },
+    theme: localStorage.getItem('ll_theme') || 'light' // NOUVEAU: Suivi du thème
 };
 
 let pendingDelete = { type: null, index: null }; 
@@ -67,10 +68,11 @@ const PIXEL_ART = {
 // ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
+    initTheme(); // Initialiser le thème
     initUserName();
     checkAppDay();
     initNotificationsUI();
-    fetchWeather(); // NOUVEAU: Appel de l'API Serveur pour la météo
+    fetchWeather();
     renderAll();
 });
 
@@ -84,6 +86,7 @@ function saveState() {
     localStorage.setItem('ll_goals', JSON.stringify(state.goals));
     localStorage.setItem('ll_qrcodes', JSON.stringify(state.qrcodes));
     localStorage.setItem('ll_notifications', JSON.stringify(state.notifications));
+    localStorage.setItem('ll_theme', state.theme);
 }
 
 function getTodayString() {
@@ -94,6 +97,35 @@ function getTodayString() {
 function timeToMinutes(timeString) { 
     if(!timeString) return 0;
     const [h, m] = timeString.split(':').map(Number); return h * 60 + m; 
+}
+
+// ================= GESTION DU THEME ================= */
+function initTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    // Vérifier les préférences système si pas de réglage local
+    if (!localStorage.getItem('ll_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        state.theme = 'dark';
+    }
+    
+    if (state.theme === 'dark') {
+        document.documentElement.classList.add('dark-theme');
+        if(themeToggle) themeToggle.checked = true;
+    } else {
+        document.documentElement.classList.remove('dark-theme');
+        if(themeToggle) themeToggle.checked = false;
+    }
+}
+
+function toggleTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle.checked) {
+        document.documentElement.classList.add('dark-theme');
+        state.theme = 'dark';
+    } else {
+        document.documentElement.classList.remove('dark-theme');
+        state.theme = 'light';
+    }
+    saveState();
 }
 
 // ================= GESTION DU PRENOM & POP-UPS CUSTOMS ================= */
@@ -114,11 +146,11 @@ function showCustomAlert(title, desc, isSuccess = false) {
     document.getElementById('alert-desc').innerText = desc;
     const iconObj = document.getElementById('alert-icon');
     if(isSuccess) {
-        iconObj.innerHTML = '<i data-lucide="check-circle" style="color: #22C55E;"></i>';
-        iconObj.style.background = 'rgba(34, 197, 94, 0.1)';
+        iconObj.innerHTML = '<i data-lucide="check-circle" style="color: var(--success);"></i>';
+        iconObj.style.background = 'rgba(52, 199, 89, 0.1)';
     } else {
-        iconObj.innerHTML = '<i data-lucide="info" style="color: var(--accent-blue);"></i>';
-        iconObj.style.background = 'rgba(47, 124, 255, 0.1)';
+        iconObj.innerHTML = '<i data-lucide="info" style="color: var(--accent-primary);"></i>';
+        iconObj.style.background = 'rgba(0, 122, 255, 0.1)';
     }
     lucide.createIcons();
     openModal('alert-modal');
@@ -139,10 +171,12 @@ function submitCustomPrompt() {
 // ================= RESET GLOBAL ================= */
 function executeFullReset() {
     const currentName = state.userName;
+    const currentTheme = state.theme; // Préserver le thème lors du reset
     state = {
         userName: currentName, streak: 0, lastMissionDate: "", currentMission: "15 pompes",
         weekSchedule: {}, workoutGenerated: null, goals: [], qrcodes: [],
-        notifications: { sport: false, school: false, motivation: false, goals: false, streak: false }
+        notifications: { sport: false, school: false, motivation: false, goals: false, streak: false },
+        theme: currentTheme
     };
     saveState();
     syncAllOneSignalTags(); 
@@ -196,11 +230,15 @@ function renderAll() {
     document.getElementById('home-mission-text').innerText = state.currentMission;
     
     if (isMissionDone) {
-        missionBtn.innerText = "Validé ! ✨"; missionBtn.style.background = "var(--glass-border)";
-        missionBtn.style.color = "var(--success-green)"; missionBtn.disabled = true;
+        missionBtn.innerText = "Validé ! ✨"; 
+        missionBtn.style.background = "var(--glass-border)";
+        missionBtn.style.color = "var(--success)"; 
+        missionBtn.disabled = true;
     } else {
-        missionBtn.innerText = "Mission terminée"; missionBtn.style.background = "var(--accent-blue)";
-        missionBtn.style.color = "white"; missionBtn.disabled = false;
+        missionBtn.innerText = "Mission terminée"; 
+        missionBtn.style.background = "var(--accent-primary)";
+        missionBtn.style.color = "white"; 
+        missionBtn.disabled = false;
     }
 
     updateHomeGoalSummary(); updateSchoolDisplay(); renderWorkout(); renderGoals(); renderQRCodes(); lucide.createIcons();
@@ -233,10 +271,10 @@ async function fetchWeather() {
         addonsContainer.innerHTML = "";
         data.addons.forEach(addon => {
             const div = document.createElement('div');
-            div.style.background = "rgba(255,255,255,0.05)";
-            div.style.padding = "10px";
-            div.style.borderRadius = "8px";
-            div.style.color = "#FFF";
+            div.style.background = "rgba(120, 120, 128, 0.08)";
+            div.style.padding = "10px 14px";
+            div.style.borderRadius = "12px";
+            div.style.color = "var(--text-primary)";
             div.innerText = addon;
             addonsContainer.appendChild(div);
         });
@@ -265,7 +303,9 @@ function importData(event) {
             if(importedState) {
                 state = importedState; saveState(); 
                 syncAllOneSignalTags();
-                initNotificationsUI(); renderAll();
+                initNotificationsUI(); 
+                initTheme(); // Appliquer le thème importé
+                renderAll();
                 showCustomAlert("Succès", "Sauvegarde restaurée avec succès ! ✨", true);
             }
         } catch(err) { showCustomAlert("Erreur", "Fichier invalide."); }
@@ -284,7 +324,7 @@ function updateNotificationAuthUI() {
     if (!isSecure) {
         if (statusText) {
             statusText.innerText = "⚠️ HTTPS Requis pour les notifications";
-            statusText.style.color = "var(--error-red)";
+            statusText.style.color = "var(--error)";
         }
         if (promptBtn) promptBtn.style.display = "none";
         return;
@@ -298,13 +338,13 @@ function updateNotificationAuthUI() {
             if (hasPermission) {
                 if (statusText) {
                     statusText.innerText = "Notifications Cloud activées ✨";
-                    statusText.style.color = "#22C55E"; 
+                    statusText.style.color = "var(--success)"; 
                 }
                 if (promptBtn) promptBtn.style.display = "none";
             } else {
                 if (statusText) {
                     statusText.innerText = "Non configuré ou bloqué";
-                    statusText.style.color = "#F59E0B"; 
+                    statusText.style.color = "var(--warning)"; 
                 }
                 if (promptBtn) promptBtn.style.display = "block";
             }
@@ -481,7 +521,7 @@ function updateSchoolDisplay() {
 
     const homeCard = document.getElementById('home-schedule-status'); const schoolPage = document.getElementById('full-schedule-display');
     if (displayDay !== null) {
-        homeCard.innerHTML = `<p style="font-weight:600; color:${isToday && statusText === 'En cours' ? 'var(--accent-blue)' : '#FFF'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
+        homeCard.innerHTML = `<p style="font-weight:600; color:${isToday && statusText === 'En cours' ? 'var(--accent-primary)' : 'var(--text-primary)'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
         schoolPage.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3><p class="subtitle" style="font-size:1rem;">${timeText}</p></div><div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px;"><i data-lucide="clock" style="width:24px; height:24px;"></i></div></div>${progressHTML}`;
     } else {
         homeCard.innerHTML = `<p class="subtitle">Aucun horaire.</p>`; schoolPage.innerHTML = `<p class="subtitle text-center">Aucun horaire de configuré pour la semaine.</p>`;
@@ -503,7 +543,7 @@ function renderWorkout() {
     if (!state.workoutGenerated) return;
     state.workoutGenerated.forEach((ex, index) => {
         const card = document.createElement('div'); card.className = "glass-card item-card"; if(ex.done) card.style.opacity = "0.5";
-        card.innerHTML = `<div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div><div class="item-actions">${!ex.done ? `<button class="btn-icon interactive-btn" style="background:var(--glass-border);" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success-green)"></i>'}</div>`;
+        card.innerHTML = `<div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div><div class="item-actions">${!ex.done ? `<button class="btn-icon interactive-btn" style="background:var(--glass-border);" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success)"></i>'}</div>`;
         list.appendChild(card);
     });
 }
@@ -549,15 +589,15 @@ function renderGoals() {
         let priceHTML = "", timeHTML = "", daysBadge = "", daysRemaining = 0;
         if (goal.date) {
             daysRemaining = calculateDaysRemaining(goal.date);
-            daysBadge = `<p class="subtitle" style="font-size:0.85rem; font-weight:600; color:var(--warning-orange); margin-bottom: 8px;">⏳ Plus que ${daysRemaining} jours</p>`;
+            daysBadge = `<p class="subtitle" style="font-size:0.85rem; font-weight:600; color:var(--warning); margin-bottom: 8px;">⏳ Plus que ${daysRemaining} jours</p>`;
             const timePercent = calculateGoalTimePercent(goal);
-            timeHTML = `<div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: ${timePercent > 80 ? 'var(--warning-orange)' : 'var(--accent-blue)'};"></div></div>`;
+            timeHTML = `<div class="progress-bar-linear" style="height: 4px; margin-top: 4px;"><div class="progress-fill" style="width: ${timePercent}%; background: ${timePercent > 80 ? 'var(--warning)' : 'var(--accent-primary)'};"></div></div>`;
         }
         if (goal.hasPrice && goal.targetMoney > 0) {
             let moneyPercent = Math.min(Math.round((goal.currentMoney / goal.targetMoney) * 100), 100);
-            let barColor = moneyPercent >= 80 ? "var(--success-green)" : "var(--accent-blue)";
+            let barColor = moneyPercent >= 80 ? "var(--success)" : "var(--accent-primary)";
             let coachingText = goal.currentMoney >= goal.targetMoney ? "Financement complété ! 🎉" : (goal.date ? `Mets de côté ${((goal.targetMoney - goal.currentMoney) / Math.max(1, Math.ceil(daysRemaining / 7))).toFixed(2)}€ / sem.` : "");
-            priceHTML = `<p class="subtitle" style="margin-top: 12px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p><div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>${coachingText ? `<p class="subtitle" style="font-size:0.8rem; margin-top:4px; color:#A1A1AA;">${coachingText}</p>` : ''}`;
+            priceHTML = `<p class="subtitle" style="margin-top: 12px;">Cagnotte : ${goal.currentMoney}€ / ${goal.targetMoney}€</p><div class="progress-bar-linear"><div class="progress-fill" style="width: ${moneyPercent}%; background: ${barColor};"></div></div>${coachingText ? `<p class="subtitle" style="font-size:0.8rem; margin-top:4px;">${coachingText}</p>` : ''}`;
         }
 
         const card = document.createElement('div'); card.className = "glass-card";
@@ -566,7 +606,7 @@ function renderGoals() {
                 <div style="flex: 1; padding-right: 10px;">
                     <h4 style="display:flex; align-items:center; gap:6px;">
                         ${goal.title}
-                        ${goal.isFavorite ? '<i data-lucide="heart" style="width:16px;height:16px;fill:var(--error-red);color:var(--error-red);"></i>' : ''}
+                        ${goal.isFavorite ? '<i data-lucide="heart" style="width:16px;height:16px;fill:var(--error);color:var(--error);"></i>' : ''}
                     </h4>
                     <p class="subtitle" style="margin-bottom:8px;">${goal.desc || ''}</p>${daysBadge}
                 </div>
@@ -595,8 +635,8 @@ function updateHomeGoalSummary() {
         } else if (topGoal.hasPrice && topGoal.currentMoney >= topGoal.targetMoney) { proactiveMessage = `Objectif atteint pour ${topGoal.title} ! 🎉`; } 
         else if (!topGoal.date) { proactiveMessage = `${topGoal.title}`; }
 
-        summary.innerHTML = `<p style="font-weight:600; color:#FFF; font-size:1rem; line-height:1.4;">${topGoal.isFavorite ? '<i data-lucide="heart" style="width:14px; height:14px; fill:var(--error-red); color:var(--error-red); display:inline-block; vertical-align:middle; margin-right:4px;"></i>' : ''} ${proactiveMessage}</p>
-            ${topGoal.date ? `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-purple);"></div></div>` : ''}`;
+        summary.innerHTML = `<p style="font-weight:600; color:var(--text-primary); font-size:1rem; line-height:1.4;">${topGoal.isFavorite ? '<i data-lucide="heart" style="width:14px; height:14px; fill:var(--error); color:var(--error); display:inline-block; vertical-align:middle; margin-right:4px;"></i>' : ''} ${proactiveMessage}</p>
+            ${topGoal.date ? `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-secondary);"></div></div>` : ''}`;
     } else { summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`; }
 }
 function openGoalPrompt(index) {
