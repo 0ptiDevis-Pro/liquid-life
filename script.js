@@ -9,7 +9,7 @@ let state = {
     goals: JSON.parse(localStorage.getItem('ll_goals')) || [],
     qrcodes: JSON.parse(localStorage.getItem('ll_qrcodes')) || [],
     notifications: JSON.parse(localStorage.getItem('ll_notifications')) || { sport: false, school: false, motivation: false, goals: false, streak: false },
-    theme: localStorage.getItem('ll_theme') || 'light' // NOUVEAU: Suivi du thème
+    theme: localStorage.getItem('ll_theme') || 'dark' // NOUVEAU: Thème sombre par défaut
 };
 
 let pendingDelete = { type: null, index: null }; 
@@ -68,7 +68,7 @@ const PIXEL_ART = {
 // ================= INITIALISATION ET ECOUTEURS ================= */
 document.addEventListener('DOMContentLoaded', () => {
     lucide.createIcons();
-    initTheme(); // Initialiser le thème
+    initTheme(); 
     initUserName();
     checkAppDay();
     initNotificationsUI();
@@ -99,31 +99,27 @@ function timeToMinutes(timeString) {
     const [h, m] = timeString.split(':').map(Number); return h * 60 + m; 
 }
 
-// ================= GESTION DU THEME ================= */
+// ================= GESTION DU THEME (SOMBRE PAR DEFAUT) ================= */
 function initTheme() {
-    const themeToggle = document.getElementById('theme-toggle');
-    // Vérifier les préférences système si pas de réglage local
-    if (!localStorage.getItem('ll_theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        state.theme = 'dark';
-    }
-    
-    if (state.theme === 'dark') {
-        document.documentElement.classList.add('dark-theme');
+    const themeToggle = document.getElementById('main-theme-toggle');
+    // Le CSS racine est sombre par défaut. On ajoute .light-theme si clair.
+    if (state.theme === 'light') {
+        document.documentElement.classList.add('light-theme');
         if(themeToggle) themeToggle.checked = true;
     } else {
-        document.documentElement.classList.remove('dark-theme');
+        document.documentElement.classList.remove('light-theme');
         if(themeToggle) themeToggle.checked = false;
     }
 }
 
 function toggleTheme() {
-    const themeToggle = document.getElementById('theme-toggle');
+    const themeToggle = document.getElementById('main-theme-toggle');
     if (themeToggle.checked) {
-        document.documentElement.classList.add('dark-theme');
-        state.theme = 'dark';
-    } else {
-        document.documentElement.classList.remove('dark-theme');
+        document.documentElement.classList.add('light-theme');
         state.theme = 'light';
+    } else {
+        document.documentElement.classList.remove('light-theme');
+        state.theme = 'dark';
     }
     saveState();
 }
@@ -147,10 +143,10 @@ function showCustomAlert(title, desc, isSuccess = false) {
     const iconObj = document.getElementById('alert-icon');
     if(isSuccess) {
         iconObj.innerHTML = '<i data-lucide="check-circle" style="color: var(--success);"></i>';
-        iconObj.style.background = 'rgba(52, 199, 89, 0.1)';
+        iconObj.style.background = 'rgba(50, 213, 131, 0.1)';
     } else {
         iconObj.innerHTML = '<i data-lucide="info" style="color: var(--accent-primary);"></i>';
-        iconObj.style.background = 'rgba(0, 122, 255, 0.1)';
+        iconObj.style.background = 'rgba(122, 169, 255, 0.1)';
     }
     lucide.createIcons();
     openModal('alert-modal');
@@ -171,7 +167,7 @@ function submitCustomPrompt() {
 // ================= RESET GLOBAL ================= */
 function executeFullReset() {
     const currentName = state.userName;
-    const currentTheme = state.theme; // Préserver le thème lors du reset
+    const currentTheme = state.theme;
     state = {
         userName: currentName, streak: 0, lastMissionDate: "", currentMission: "15 pompes",
         weekSchedule: {}, workoutGenerated: null, goals: [], qrcodes: [],
@@ -231,14 +227,16 @@ function renderAll() {
     
     if (isMissionDone) {
         missionBtn.innerText = "Validé ! ✨"; 
-        missionBtn.style.background = "var(--glass-border)";
+        missionBtn.style.background = "var(--btn-bg)";
         missionBtn.style.color = "var(--success)"; 
         missionBtn.disabled = true;
+        missionBtn.style.boxShadow = "none";
     } else {
         missionBtn.innerText = "Mission terminée"; 
         missionBtn.style.background = "var(--accent-primary)";
-        missionBtn.style.color = "white"; 
+        missionBtn.style.color = "#FFF"; 
         missionBtn.disabled = false;
+        missionBtn.style.boxShadow = "0 4px 14px rgba(122, 169, 255, 0.3)";
     }
 
     updateHomeGoalSummary(); updateSchoolDisplay(); renderWorkout(); renderGoals(); renderQRCodes(); lucide.createIcons();
@@ -252,12 +250,12 @@ async function fetchWeather() {
         
         const data = await res.json();
         
-        // 1. Mise à jour de la carte Accueil
+        // Accueil
         document.getElementById('home-weather-temp').innerText = `${data.avgTemp}°`;
         document.getElementById('home-weather-sun').innerText = `🌅 ${data.sunrise} | 🌇 ${data.sunset}`;
         document.getElementById('home-weather-art').innerHTML = PIXEL_ART[data.weatherType] || PIXEL_ART['soleil'];
 
-        // 2. Mise à jour de la page entière Météo
+        // Page Météo
         document.getElementById('full-weather-art').innerHTML = PIXEL_ART[data.weatherType] || PIXEL_ART['soleil'];
         document.getElementById('full-weather-min').innerText = `${data.minTemp}°`;
         document.getElementById('full-weather-avg').innerText = `${data.avgTemp}°`;
@@ -271,10 +269,11 @@ async function fetchWeather() {
         addonsContainer.innerHTML = "";
         data.addons.forEach(addon => {
             const div = document.createElement('div');
-            div.style.background = "rgba(120, 120, 128, 0.08)";
-            div.style.padding = "10px 14px";
-            div.style.borderRadius = "12px";
+            div.style.background = "var(--btn-bg)";
+            div.style.padding = "12px 16px";
+            div.style.borderRadius = "14px";
             div.style.color = "var(--text-primary)";
+            div.style.fontWeight = "500";
             div.innerText = addon;
             addonsContainer.appendChild(div);
         });
@@ -304,7 +303,7 @@ function importData(event) {
                 state = importedState; saveState(); 
                 syncAllOneSignalTags();
                 initNotificationsUI(); 
-                initTheme(); // Appliquer le thème importé
+                initTheme(); 
                 renderAll();
                 showCustomAlert("Succès", "Sauvegarde restaurée avec succès ! ✨", true);
             }
@@ -521,8 +520,8 @@ function updateSchoolDisplay() {
 
     const homeCard = document.getElementById('home-schedule-status'); const schoolPage = document.getElementById('full-schedule-display');
     if (displayDay !== null) {
-        homeCard.innerHTML = `<p style="font-weight:600; color:${isToday && statusText === 'En cours' ? 'var(--accent-primary)' : 'var(--text-primary)'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
-        schoolPage.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3><p class="subtitle" style="font-size:1rem;">${timeText}</p></div><div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px;"><i data-lucide="clock" style="width:24px; height:24px;"></i></div></div>${progressHTML}`;
+        homeCard.innerHTML = `<p style="font-weight:700; color:${isToday && statusText === 'En cours' ? 'var(--accent-primary)' : 'var(--text-primary)'};">${statusText}</p><p class="subtitle">${timeText}</p>`;
+        schoolPage.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><h3 style="margin-bottom:4px; font-size:1.5rem;">${statusText}</h3><p class="subtitle" style="font-size:1rem;">${timeText}</p></div><div class="card-icon ${isToday && statusText === 'En cours' ? 'blue-icon' : ''}" style="width:48px; height:48px; margin-bottom:0;"><i data-lucide="clock" style="width:24px; height:24px;"></i></div></div>${progressHTML}`;
     } else {
         homeCard.innerHTML = `<p class="subtitle">Aucun horaire.</p>`; schoolPage.innerHTML = `<p class="subtitle text-center">Aucun horaire de configuré pour la semaine.</p>`;
     }
@@ -543,7 +542,7 @@ function renderWorkout() {
     if (!state.workoutGenerated) return;
     state.workoutGenerated.forEach((ex, index) => {
         const card = document.createElement('div'); card.className = "glass-card item-card"; if(ex.done) card.style.opacity = "0.5";
-        card.innerHTML = `<div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div><div class="item-actions">${!ex.done ? `<button class="btn-icon interactive-btn" style="background:var(--glass-border);" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success)"></i>'}</div>`;
+        card.innerHTML = `<div class="item-info"><h4 style="${ex.done ? 'text-decoration: line-through;' : ''}">${ex.name}</h4><p class="subtitle">Objectif : ${ex.target}</p></div><div class="item-actions">${!ex.done ? `<button class="btn-icon interactive-btn" onclick="completeWorkoutExercise(${index})"><i data-lucide="check"></i></button>` : '<i data-lucide="check" style="color:var(--success)"></i>'}</div>`;
         list.appendChild(card);
     });
 }
@@ -636,7 +635,7 @@ function updateHomeGoalSummary() {
         else if (!topGoal.date) { proactiveMessage = `${topGoal.title}`; }
 
         summary.innerHTML = `<p style="font-weight:600; color:var(--text-primary); font-size:1rem; line-height:1.4;">${topGoal.isFavorite ? '<i data-lucide="heart" style="width:14px; height:14px; fill:var(--error); color:var(--error); display:inline-block; vertical-align:middle; margin-right:4px;"></i>' : ''} ${proactiveMessage}</p>
-            ${topGoal.date ? `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-secondary);"></div></div>` : ''}`;
+            ${topGoal.date ? `<div class="progress-bar-linear" style="height: 6px; margin-top: 12px;"><div class="progress-fill" style="width: ${timePercent}%; background: var(--accent-primary);"></div></div>` : ''}`;
     } else { summary.innerHTML = `<p class="subtitle">Aucun objectif fixé.</p>`; }
 }
 function openGoalPrompt(index) {
