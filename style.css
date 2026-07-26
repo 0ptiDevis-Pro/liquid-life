@@ -4,7 +4,7 @@
     --bg-main-color: #0C1015;
     --bg-gradient: linear-gradient(180deg, #10151D 0%, #0C1015 45%, #090C11 100%);
     
-    --card-bg: rgba(60, 71, 90, 0.72);
+    --card-bg: rgba(42, 52, 67, 0.72);
     --card-border: rgba(255, 255, 255, 0.08);
     --card-highlight: inset 0 1px 1px rgba(255, 255, 255, 0.12); /* Reflet Liquid Glass */
     
@@ -49,23 +49,23 @@
 
 .light-theme {
     /* LIGHT MODE */
-    --bg-main-color: #F2F5FA;
-    --bg-gradient: linear-gradient(180deg, #F8FAFD 0%, #F2F5FA 50%, #EDF2F8 100%);
+    --bg-main-color: #E8EDF4;
+    --bg-gradient: linear-gradient(180deg, #EEF2F7 0%, #E8EDF4 50%, #E2E8F1 100%);
     
-    --card-bg: rgba(250, 252, 255, 0.74);
+    --card-bg: rgba(243, 247, 252, 0.74);
     --card-border: rgba(255, 255, 255, 0.75);
     --card-highlight: inset 0 1px 2px rgba(255, 255, 255, 0.9);
     
     --text-primary: #243041;
-    --text-secondary: #5B6A7E;
+    --text-secondary: #556274;
     --text-disabled: #8A97A8;
     
-    --btn-bg: #E1E8F2;
-    --btn-hover: #D6E0EE;
-    --btn-pressed: #CCD7E6;
+    --btn-bg: #D7E0EB;
+    --btn-hover: #CCD8E8;
+    --btn-pressed: #C1CEDF;
     --btn-text: #233143;
     
-    --nav-bg: rgba(245, 248, 252, 0.72);
+    --nav-bg: rgba(232, 237, 244, 0.78);
     --nav-border: rgba(255, 255, 255, 0.8);
     
     --accent-primary: #5D8EFF;
